@@ -206,19 +206,20 @@ async function startCall() {
   setActiveNode('start');
   addLine('system', 'Call session starting — microphone permission requested.');
 
+  // Gate on permissions API instead of pre-grabbing the mic — the SDK does its
+  // own getUserMedia internally and a probe-then-release pattern races with it
+  // on some browsers, leaving the SDK with a stopped track.
   try {
-    // Browsers require a user gesture to request mic. This click IS that gesture.
-    // Immediately release the stream so the SDK can acquire the mic exclusively —
-    // otherwise the track stays open and the agent hears silence.
-    const probeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    probeStream.getTracks().forEach((t) => t.stop());
-    log('mic permission granted; probe stream released');
-  } catch (err) {
-    addLine('system', `Mic blocked: ${err.message}. Press F for fallback video.`);
-    log('mic error', err);
-    resetCall();
-    return;
-  }
+    if (navigator.permissions?.query) {
+      const p = await navigator.permissions.query({ name: 'microphone' });
+      log('mic permission state', p.state);
+      if (p.state === 'denied') {
+        addLine('system', 'Microphone is blocked. Click the lock icon in the URL bar and allow microphone, then try again.');
+        resetCall();
+        return;
+      }
+    }
+  } catch (e) { log('permissions.query unsupported', e); }
 
   startTimer();
   setActiveNode('customer');
@@ -233,6 +234,10 @@ async function startCall() {
   try {
     state.convo = await Conversation.startSession({
       agentId: env.ELEVENLABS_AGENT_ID,
+      // REQUIRED: without this, the SDK defaults to WebSocket and the user's
+      // mic audio does not reach the agent reliably. WebRTC uses LiveKit to
+      // publish the local audio track properly.
+      connectionType: 'webrtc',
       // Inject runtime context so Sarah's prompt renders `{{trainee_name}}` + `{{site}}`.
       dynamicVariables: {
         trainee_name: TRAINEE_NAME,
