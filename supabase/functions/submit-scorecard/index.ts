@@ -49,8 +49,14 @@ Deno.serve(async (req) => {
     tone_and_professionalism:    { pass: Boolean(pick("tone_pass", "tonePass")), rationale: String(pick("tone_rationale", "toneRationale") ?? "") },
   };
 
-  const overall = Number(pick("overall_score", "overallScore") ?? 0);
-  const clampedOverall = Math.max(0, Math.min(10, Math.round(overall)));
+  // RECOMPUTE overall_score server-side from the 5 pass booleans. Ignores
+  // whatever number the agent sent — prevents float/percent confusion bugs.
+  const passCount = Object.values(criteria_results).filter((c) => c.pass).length;
+  const clampedOverall = passCount * 2; // 5 criteria * 2 = max 10
+  const agentClaimed = Number(pick("overall_score", "overallScore") ?? 0);
+  if (Math.round(agentClaimed) !== clampedOverall) {
+    console.log(`agent claimed ${agentClaimed}, recomputed ${clampedOverall} from ${passCount}/5 passes`);
+  }
 
   // Idempotency by conversation_id
   const conversationId = ((pick("conversation_id", "conversationId")) as string | undefined) ?? null;

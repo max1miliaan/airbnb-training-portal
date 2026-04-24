@@ -569,6 +569,12 @@ if (supa) {
 }
 
 function paintEvaluation(row) {
+  // Guard against double-paint: Realtime + fetch-evaluation + tool-dispatched
+  // can all fire for the same conversation. First one wins; ignore the rest.
+  if (state.evaluationId && state.evaluationId === row.id) {
+    log('paintEvaluation skip — already painted', row.id);
+    return;
+  }
   state.evaluationId = row.id;
   setActiveNode('end');
   if (state.evalTimeout) { clearTimeout(state.evalTimeout); state.evalTimeout = null; }
