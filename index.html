@@ -61,36 +61,10 @@
 
     <!-- LEFT: scenario brief ------------------------------------------- -->
     <aside class="brief entrance">
-      <div class="persona">
-        <div class="persona-avatar" aria-hidden="true"></div>
-        <div class="persona-text">
-          <div class="persona-name">Sarah Chen</div>
-          <div class="persona-meta">34 · Marketing manager · Toronto</div>
-          <div class="persona-quote">"I'm not getting my money back and I don't understand why."</div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-head">
-          <div class="eyebrow">Reservation context</div>
-          <h3>HMXYZ8423</h3>
-        </div>
-        <div class="card-body" style="padding-top: 0;">
-          <dl class="brief-facts">
-            <div class="brief-fact"><dt>Listing</dt><dd>Waterfront Villa</dd></div>
-            <div class="brief-fact"><dt>Nights</dt><dd>4</dd></div>
-            <div class="brief-fact"><dt>Total paid</dt><dd>$2,145</dd></div>
-            <div class="brief-fact highlight"><dt>Cancelled</dt><dd>5 days out</dd></div>
-            <div class="brief-fact"><dt>Policy</dt><dd>Firm</dd></div>
-            <div class="brief-fact"><dt>AirCover</dt><dd>Not purchased</dd></div>
-          </dl>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-head">
-          <div class="eyebrow">Objectives</div>
-          <h3>Five moves to land</h3>
+      <!-- Objectives promoted to top-of-rail: trainee's heads-up checklist -->
+      <div class="card card-objectives">
+        <div class="card-head compact">
+          <div class="eyebrow">Objectives · Five moves to land</div>
           <div class="obj-progress">
             <div class="obj-progress-fill" id="obj-progress-fill"></div>
           </div>
@@ -104,10 +78,37 @@
         </div>
       </div>
 
-      <div class="card hint-card">
-        <div class="hint-row"><kbd>coach me</kbd><span>pause for a tip</span></div>
-        <div class="hint-row"><kbd>M</kbd><span>mute your mic</span></div>
-        <div class="hint-row"><kbd>F</kbd><span>fallback video</span></div>
+      <!-- Sarah persona: compressed to a single row -->
+      <div class="persona persona-compact">
+        <div class="persona-avatar" aria-hidden="true"></div>
+        <div class="persona-text">
+          <div class="persona-name">Sarah Chen <span class="persona-meta-inline">· 34 · Toronto</span></div>
+          <div class="persona-quote">"I'm not getting my money back and I don't understand why."</div>
+        </div>
+      </div>
+
+      <!-- Reservation card: compact 2x3 grid, highlight row preserved -->
+      <div class="card">
+        <div class="card-head compact">
+          <div class="eyebrow">Reservation · HMXYZ8423</div>
+        </div>
+        <div class="card-body" style="padding-top: 0;">
+          <dl class="brief-facts compact">
+            <div class="brief-fact"><dt>Listing</dt><dd>Waterfront Villa</dd></div>
+            <div class="brief-fact"><dt>Total</dt><dd>$2,145</dd></div>
+            <div class="brief-fact highlight"><dt>Cancelled</dt><dd>5 days out</dd></div>
+            <div class="brief-fact"><dt>Policy</dt><dd>Firm</dd></div>
+            <div class="brief-fact"><dt>AirCover</dt><dd>Not purchased</dd></div>
+            <div class="brief-fact"><dt>Nights</dt><dd>4</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <!-- Hints: single-line condensed -->
+      <div class="hint-strip">
+        <span><kbd>coach me</kbd> pause for a tip</span>
+        <span><kbd>M</kbd> mute</span>
+        <span><kbd>F</kbd> fallback</span>
       </div>
     </aside>
 
