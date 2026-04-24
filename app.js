@@ -326,16 +326,19 @@ async function endCall() {
   }
 
   // Progress feedback — ElevenLabs eval analysis takes 10-30s after end_call.
-  // Tick the orb subtitle every 3s so the user sees it's actively working.
+  // Stash the timer on state so paintEvaluation can kill it immediately when
+  // the scorecard lands (from Realtime, direct-fetch, or agent-dispatched tool).
   let elapsed = 0;
-  const progressTimer = setInterval(() => {
+  state.progressTimer = setInterval(() => {
     elapsed += 3;
-    if (!state.evaluationId) {
-      setOrb('thinking', 'Call ended — scoring...', `Evaluator is reviewing the transcript (${elapsed}s).`);
-    } else {
-      clearInterval(progressTimer);
+    if (state.evaluationId) {
+      clearInterval(state.progressTimer);
+      state.progressTimer = null;
+      return;
     }
+    setOrb('thinking', 'Call ended — scoring...', `Evaluator is reviewing the transcript (${elapsed}s).`);
   }, 3000);
+  const progressTimer = state.progressTimer;
 
   // Direct-fetch evaluation. Retries up to 3 times if the ElevenLabs analysis
   // pipeline hasn't finished yet (504 from the edge proxy).
@@ -578,6 +581,9 @@ function paintEvaluation(row) {
   state.evaluationId = row.id;
   setActiveNode('end');
   if (state.evalTimeout) { clearTimeout(state.evalTimeout); state.evalTimeout = null; }
+  // Kill the progress ticker immediately so the orb doesn't flap back to
+  // "Call ended — scoring..." after we celebrate below.
+  if (state.progressTimer) { clearInterval(state.progressTimer); state.progressTimer = null; }
   // Auto-switch to the Scorecard tab so the donut reveal is the money shot.
   const scorecardTab = document.querySelector('.tab[data-tab="eval"]');
   if (scorecardTab && !scorecardTab.classList.contains('active')) scorecardTab.click();
@@ -603,7 +609,11 @@ function paintEvaluation(row) {
   }
   scorebar?.classList.add('visible');
   if (btnAgain) btnAgain.style.display = '';
-  setOrb('idle', `Scored ${overall}/10.`, 'Full breakdown in the scorecard panel on the right.');
+  const headline =
+    overall >= 8 ? 'Strong call — well played.' :
+    overall >= 5 ? 'Call scored — room to refine.' :
+                   'Call scored — see what to practise.';
+  setOrb('idle', headline, `${overall}/10 — full breakdown on the right. Press "Practice again" when ready.`);
 }
 
 function computeOverallFromCriteria(criteria) {
