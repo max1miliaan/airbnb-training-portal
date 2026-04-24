@@ -218,8 +218,12 @@ async function startCall() {
   addLine('system', 'Call session starting — microphone permission requested.');
 
   try {
-    // Browsers require user gesture to request mic. This click IS that gesture.
-    await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Browsers require a user gesture to request mic. This click IS that gesture.
+    // Immediately release the stream so the SDK can acquire the mic exclusively —
+    // otherwise the track stays open and the agent hears silence.
+    const probeStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    probeStream.getTracks().forEach((t) => t.stop());
+    log('mic permission granted; probe stream released');
   } catch (err) {
     addLine('system', `Mic blocked: ${err.message}. Press F for fallback video.`);
     log('mic error', err);
@@ -286,6 +290,10 @@ async function startCall() {
     log('conversation started', state.convo);
     // Expose for debugging from devtools console
     window.__convo = state.convo;
+    // Reset mute state to NOT muted when a new session starts.
+    state.micMuted = false;
+    btnMic.classList.remove('muted');
+    if (state.convo?.setMicMuted) state.convo.setMicMuted(false);
   } catch (err) {
     // Surface the real error instead of silently dropping into demo mode —
     // easier to debug on stage, and the presenter can retry with Begin.
