@@ -281,9 +281,16 @@ async function startCall() {
     // Expose for debugging from devtools console
     window.__convo = state.convo;
   } catch (err) {
+    // Surface the real error instead of silently dropping into demo mode —
+    // easier to debug on stage, and the presenter can retry with Begin.
+    const msg = err?.message ?? String(err);
     log('startSession failed', err);
-    addLine('system', `Could not start call: ${err.message ?? err}. Falling back to demo script.`);
-    runDemoScript();
+    addLine('system', `Could not start call: ${msg}. Click Begin again or press ⇧R to reset.`);
+    setStatus('idle');
+    setOrb('idle', 'Call failed to start', msg);
+    btnEnd.classList.add('hide');
+    btnStart.classList.remove('hide');
+    stopTimer();
   }
 }
 
