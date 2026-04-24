@@ -196,6 +196,14 @@ function toggleMic() {
 // ---- Call lifecycle -------------------------------------------------------
 
 async function startCall() {
+  // Defensive: if a previous session is still lingering in memory, kill it
+  // before starting a new one. Protects against double-click or restart-after-stall.
+  if (state.convo) {
+    log('startCall found stale convo; ending it first');
+    try { await state.convo.endSession(); } catch (e) { log('stale endSession err', e); }
+    state.convo = null;
+  }
+
   btnStart.classList.add('hide');
   btnEnd.classList.remove('hide');
   setStatus('connecting');
@@ -634,3 +642,33 @@ if (envPill) {
 resetCall();
 loadDashboard();
 setActiveNode(null);
+
+// ---- Hard-reset + unload safety ----------------------------------------
+// If the user refreshes or closes the tab mid-call, end the session cleanly
+// so we don't leave orphaned agents running on the ElevenLabs side.
+window.addEventListener('beforeunload', () => {
+  try { state.convo?.endSession(); } catch {}
+});
+window.addEventListener('pagehide', () => {
+  try { state.convo?.endSession(); } catch {}
+});
+
+// Hard reset keyboard shortcut: Shift+R at any time terminates any live session
+// and restores the UI to ready-to-begin. Useful on stage if anything stalls.
+async function hardReset() {
+  log('hard reset');
+  if (state.convo) {
+    try { await state.convo.endSession(); } catch (e) { log('hardReset endSession err', e); }
+    state.convo = null;
+  }
+  resetCall();
+  addLine('system', 'Session reset. Click Begin scenario to try again.');
+}
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.shiftKey && (e.key === 'R' || e.key === 'r')) { e.preventDefault(); hardReset(); }
+});
+// Also bind the "Practice again" button to always work as a full hard reset.
+btnAgain?.addEventListener('click', hardReset);
+// Expose on window for stage emergencies via devtools.
+window.__hardReset = hardReset;
