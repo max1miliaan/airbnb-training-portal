@@ -549,6 +549,117 @@ kbd {
   padding: 1px 5px; border-radius: 3px; font-size: 9px; font-family: var(--font-mono);
 }
 
+/* --- Training-center Scorecard ---------------------------------------- */
+
+.scorecard-hero {
+  display: flex; align-items: center; gap: var(--s-5);
+  padding: var(--s-5); margin-bottom: var(--s-5);
+  background: linear-gradient(135deg, #FFF6F8 0%, #FFFFFF 60%);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+.donut {
+  --size: 112px;
+  --thickness: 10px;
+  --pct: 0;
+  --fill: var(--ab-rausch);
+  width: var(--size); height: var(--size);
+  flex: 0 0 var(--size);
+  border-radius: 50%;
+  background: conic-gradient(var(--fill) calc(var(--pct) * 1%), #EFEAE4 0);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  transition: background 500ms ease-out;
+}
+.donut::before {
+  content: ""; position: absolute; inset: var(--thickness);
+  background: #FFFFFF; border-radius: 50%;
+}
+.donut.good { --fill: #008A05; }
+.donut.mid  { --fill: #E07C02; }
+.donut.bad  { --fill: #E01E5A; }
+
+.donut-inner { position: relative; text-align: center; line-height: 1; }
+.donut-score {
+  font-family: var(--font-display);
+  font-size: 34px; font-weight: 700;
+  color: var(--text-strong);
+  letter-spacing: -0.02em;
+}
+.donut-max {
+  font-size: 11px; color: var(--text-subtle); margin-top: 2px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+
+.scorecard-meta { min-width: 0; flex: 1; }
+.scorecard-label {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg); font-weight: 700;
+  color: var(--text-strong);
+  margin-top: 4px;
+}
+.scorecard-sub {
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+  line-height: 1.4; margin-top: 4px;
+}
+
+.criteria-list {
+  display: flex; flex-direction: column;
+  gap: var(--s-2);
+}
+.criterion {
+  display: flex; align-items: flex-start; gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  transition: border-color 200ms ease, background 200ms ease;
+}
+.criterion-status {
+  flex: 0 0 22px;
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 13px; font-weight: 700;
+  transition: all 300ms ease;
+}
+.criterion-status[data-state="pending"] { background: #F1EDE7; color: #B5B0A7; }
+.criterion-status[data-state="pass"]    { background: #008A05; color: #FFFFFF; }
+.criterion-status[data-state="fail"]    { background: #E01E5A; color: #FFFFFF; }
+.criterion-status[data-state="pass"]::before    { content: "\2713"; }
+.criterion-status[data-state="fail"]::before    { content: "\00D7"; }
+.criterion-status[data-state="pending"]::before { content: "\2022"; }
+
+.criterion[data-state="pass"] { border-color: #C4E8C6; background: linear-gradient(180deg, #F6FCF6, #FFFFFF); }
+.criterion[data-state="fail"] { border-color: #F5C8D6; background: linear-gradient(180deg, #FFF6F8, #FFFFFF); }
+
+.criterion-body { min-width: 0; flex: 1; }
+.criterion-name {
+  font-family: var(--font-display);
+  font-size: var(--fs-sm); font-weight: 700;
+  color: var(--text-strong);
+}
+.criterion-rationale {
+  font-size: var(--fs-xs);
+  color: var(--text-subtle);
+  line-height: 1.45; margin-top: 3px;
+}
+.criterion[data-state="pass"] .criterion-rationale,
+.criterion[data-state="fail"] .criterion-rationale {
+  color: var(--text-body);
+}
+
+.eval-meta { margin-top: var(--s-4); text-align: center; }
+
+/* --- Updated footer scorebar ---------------------------------------- */
+.sb-result {
+  flex: 1;
+  font-size: var(--fs-sm);
+  color: var(--text-subtle);
+}
+.sb-result.live { color: var(--text-body); font-weight: 600; }
+
 /* Center stage -------------------------------------------------------- */
 .stage { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
 

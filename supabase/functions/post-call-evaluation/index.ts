@@ -1,20 +1,20 @@
 // Supabase Edge Function: post-call-evaluation
-// Receives the ElevenLabs post-call webhook, verifies HMAC, persists the run + coaching flags.
-// Deploy with: supabase functions deploy post-call-evaluation --no-verify-jwt
+// Receives the ElevenLabs post-call webhook, verifies HMAC, persists the run.
+// Deploy: supabase functions deploy post-call-evaluation --no-verify-jwt
 //
-// ElevenLabs webhook payload shape (relevant subset):
+// Canonical ElevenLabs payload (relevant subset):
 // {
 //   agent_id, conversation_id, started_at, ended_at,
 //   transcript: [{ role, message, time_in_call_secs }, ...],
 //   tool_calls: [{ tool_name, parameters, result, time_in_call_secs }, ...],
-//   evaluation_criteria_results: { policy_adherence: {score, rationale}, empathy: [...], ... }
+//   analysis: {
+//     evaluation_criteria_results: {
+//       <criterion_id>: { result: "success" | "failure", rationale: "..." },
+//       ...
+//     },
+//     data_collection_results: { <field>: { value: ..., rationale: "..." } }
+//   }
 // }
-//
-// Secrets required (set via `supabase secrets set`):
-//   SCENARIO_ID                    fallback scenario UUID
-//   ELEVENLABS_WEBHOOK_SECRET      HMAC secret matching the agent webhook config
-// Auto-injected by platform:
-//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -27,16 +27,11 @@ const supabase = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-type Flag = { flag: string; at_seconds: number; severity: "info" | "warn" | "miss"; note: string };
-
 // ---- HMAC verification ----------------------------------------------------
-// ElevenLabs sends header `ElevenLabs-Signature: t=<unix>,v0=<hex>` where v0 is
-// HMAC-SHA256 of `${t}.${rawBody}` using the shared secret.
 
 async function verifyHmac(rawBody: string, header: string | null): Promise<boolean> {
-  if (!WEBHOOK_SECRET) return true; // secret not configured -> skip (dev only)
+  if (!WEBHOOK_SECRET) return true; // dev only
   if (!header) return false;
-
   const parts = Object.fromEntries(
     header.split(",").map((kv) => {
       const i = kv.indexOf("=");
@@ -46,11 +41,8 @@ async function verifyHmac(rawBody: string, header: string | null): Promise<boole
   const t = parts.t;
   const sig = parts.v0;
   if (!t || !sig) return false;
-
-  // Reject messages older than 5 minutes (replay protection).
   const ageSec = Math.abs(Date.now() / 1000 - Number(t));
   if (!Number.isFinite(ageSec) || ageSec > 300) return false;
-
   const enc = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
@@ -63,74 +55,82 @@ async function verifyHmac(rawBody: string, header: string | null): Promise<boole
   const macHex = Array.from(new Uint8Array(macBuf))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
-
-  // constant-time compare
   if (macHex.length !== sig.length) return false;
   let diff = 0;
   for (let i = 0; i < macHex.length; i++) diff |= macHex.charCodeAt(i) ^ sig.charCodeAt(i);
   return diff === 0;
 }
 
-// ---- Coercion helpers ------------------------------------------------------
-
-function coercePolicyScore(raw: unknown): number | null {
-  if (raw == null) return null;
-  const n = typeof raw === "number" ? raw : Number(raw);
-  if (!Number.isFinite(n)) return null;
-  // Accept either 0..1 floats (convert to 0..10) or 0..10 ints.
-  const scaled = n <= 1 ? n * 10 : n;
-  return Math.max(0, Math.min(10, Math.round(scaled)));
-}
+// ---- Helpers ---------------------------------------------------------------
 
 function safeTimestamp(raw: unknown): string {
   if (typeof raw === "string" && raw) return raw;
-  if (typeof raw === "number") return new Date(raw * (raw > 1e12 ? 1 : 1000)).toISOString();
+  if (typeof raw === "number") {
+    return new Date(raw * (raw > 1e12 ? 1 : 1000)).toISOString();
+  }
   return new Date().toISOString();
 }
 
-function extractFlags(body: Record<string, unknown>): Flag[] {
-  const flags: Flag[] = [];
-  const evals = (body.evaluation_criteria_results ?? {}) as Record<string, unknown>;
+// The 5 criteria defined on the agent. Keep in sync with platform_settings.evaluation.criteria.
+const CRITERIA_ORDER = [
+  "empathy_and_acknowledgement",
+  "policy_accuracy",
+  "aircover_path_offered",
+  "escalation_handling",
+  "tone_and_professionalism",
+];
 
-  const empathy = (evals.empathy as Array<Record<string, unknown>>) ?? [];
-  for (const e of empathy) {
-    flags.push({
-      flag: String(e.label ?? "empathy_moment"),
-      at_seconds: Number(e.time_in_call_secs ?? 0),
-      severity: (e.severity as Flag["severity"]) ?? "info",
-      note: String(e.rationale ?? ""),
+type CriterionResult = {
+  id: string;
+  pass: boolean;
+  rationale: string;
+};
+
+function normalizeCriteria(raw: Record<string, unknown> | undefined): CriterionResult[] {
+  if (!raw) return [];
+  const out: CriterionResult[] = [];
+  for (const id of CRITERIA_ORDER) {
+    const entry = raw[id] as Record<string, unknown> | undefined;
+    if (!entry) continue;
+    const result = String(entry.result ?? "").toLowerCase();
+    out.push({
+      id,
+      pass: result === "success",
+      rationale: String(entry.rationale ?? ""),
     });
   }
-
-  const toolCalls = (body.tool_calls as Array<Record<string, unknown>>) ?? [];
-  const lookupCall = toolCalls.find((t) => t.tool_name === "lookup_reservation");
-  flags.push(
-    lookupCall
-      ? {
-        flag: "tool_lookup_reservation_called",
-        at_seconds: Number(lookupCall.time_in_call_secs ?? 0),
-        severity: "info",
-        note: "Trainee pulled up reservation before quoting policy.",
-      }
-      : {
-        flag: "tool_lookup_reservation_missed",
-        at_seconds: 0,
-        severity: "miss",
-        note: "Trainee quoted policy without verifying reservation details first.",
-      },
-  );
-
-  const esc = evals.escalation_timing as Record<string, unknown> | undefined;
-  if (esc) {
-    flags.push({
-      flag: esc.triggered ? "escalation_offered" : "escalation_missed",
-      at_seconds: Number(esc.time_in_call_secs ?? 0),
-      severity: esc.triggered ? "info" : "warn",
-      note: String(esc.rationale ?? ""),
+  // Include any additional criteria that weren't in our canonical list.
+  for (const [id, entry] of Object.entries(raw)) {
+    if (CRITERIA_ORDER.includes(id)) continue;
+    const e = entry as Record<string, unknown>;
+    out.push({
+      id,
+      pass: String(e.result ?? "").toLowerCase() === "success",
+      rationale: String(e.rationale ?? ""),
     });
   }
+  return out;
+}
 
-  return flags;
+function computeOverallScore(criteria: CriterionResult[]): number {
+  if (!criteria.length) return 0;
+  // Each pass = (10 / N). Round to nearest integer 0..10.
+  const ratio = criteria.filter((c) => c.pass).length / criteria.length;
+  return Math.round(ratio * 10);
+}
+
+function buildCoachingNotes(criteria: CriterionResult[]): Array<{
+  flag_type: string;
+  severity: "info" | "miss";
+  note: string;
+  timestamp_in_call: number;
+}> {
+  return criteria.map((c) => ({
+    flag_type: c.pass ? `${c.id}_passed` : `${c.id}_missed`,
+    severity: c.pass ? "info" : "miss",
+    note: c.rationale || (c.pass ? "Criterion satisfied." : "Criterion not met."),
+    timestamp_in_call: 0,
+  }));
 }
 
 // ---- Handler ---------------------------------------------------------------
@@ -141,9 +141,9 @@ Deno.serve(async (req) => {
   const rawBody = await req.text();
   const sigHeader = req.headers.get("ElevenLabs-Signature") ??
     req.headers.get("elevenlabs-signature");
-
-  const ok = await verifyHmac(rawBody, sigHeader);
-  if (!ok) return new Response("signature invalid", { status: 401 });
+  if (!await verifyHmac(rawBody, sigHeader)) {
+    return new Response("signature invalid", { status: 401 });
+  }
 
   let body: Record<string, unknown>;
   try {
@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
 
   const conversationId = (body.conversation_id as string | undefined) ?? null;
 
-  // Idempotency: if we've already recorded this conversation, return the existing row.
+  // Idempotency: if this conversation was already recorded, return existing.
   if (conversationId) {
     const { data: existing } = await supabase
       .from("evaluations")
@@ -169,34 +169,51 @@ Deno.serve(async (req) => {
     }
   }
 
-  const policyEval = (body.evaluation_criteria_results as Record<string, unknown> | undefined)
-    ?.policy_adherence as Record<string, unknown> | undefined;
+  // Criteria results may sit at body.analysis.evaluation_criteria_results OR
+  // body.evaluation_criteria_results depending on platform version. Handle both.
+  const analysis = (body.analysis as Record<string, unknown> | undefined) ?? {};
+  const rawCriteria = (
+    (analysis.evaluation_criteria_results as Record<string, unknown> | undefined) ??
+    (body.evaluation_criteria_results as Record<string, unknown> | undefined) ??
+    {}
+  );
+
+  const criteria = normalizeCriteria(rawCriteria);
+  const overallScore = computeOverallScore(criteria);
+  const criteriaDict: Record<string, { pass: boolean; rationale: string }> = {};
+  for (const c of criteria) criteriaDict[c.id] = { pass: c.pass, rationale: c.rationale };
+
+  // Data collection (trainee_name, site, cohort_id)
+  const dataCollection = (
+    (analysis.data_collection_results as Record<string, Record<string, unknown>> | undefined) ??
+    (body.data_collection_results as Record<string, Record<string, unknown>> | undefined) ??
+    {}
+  );
+  const traineeName = String(dataCollection.trainee_name?.value ??
+    body.trainee_name ?? "Max (stage demo)");
 
   const { data: evalRow, error: evalErr } = await supabase
     .from("evaluations")
     .insert({
       scenario_id: SCENARIO_ID,
       conversation_id: conversationId,
-      trainee_name: (body.trainee_name as string) ?? "Max (stage demo)",
+      trainee_name: traineeName,
       started_at: safeTimestamp(body.started_at),
       ended_at: body.ended_at ? safeTimestamp(body.ended_at) : null,
       transcript: body.transcript ?? [],
-      policy_score: coercePolicyScore(policyEval?.score),
       tool_calls: body.tool_calls ?? [],
-      empathy_flags: (body.evaluation_criteria_results as Record<string, unknown> | undefined)
-        ?.empathy ?? [],
-      escalation_flag: Boolean(
-        (body.evaluation_criteria_results as Record<string, unknown> | undefined)
-          ?.escalation_timing &&
-          ((body.evaluation_criteria_results as Record<string, unknown>).escalation_timing as
-            Record<string, unknown>).triggered,
-      ),
+      criteria_results: criteriaDict,
+      overall_score: overallScore,
+      // Legacy columns preserved for backwards compat with older dashboard code.
+      policy_score: overallScore,
+      empathy_flags: criteria.filter((c) => c.id === "empathy_and_acknowledgement" && !c.pass)
+        .map((c) => ({ flag: "missed_empathy", rationale: c.rationale })),
+      escalation_flag: criteria.find((c) => c.id === "escalation_handling")?.pass ?? false,
     })
     .select()
     .single();
 
   if (evalErr || !evalRow) {
-    // Unique violation -> another concurrent request inserted first; treat as idempotent.
     if (evalErr?.code === "23505" && conversationId) {
       const { data: winner } = await supabase
         .from("evaluations")
@@ -213,26 +230,24 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: evalErr?.message }), { status: 500 });
   }
 
-  const flags = extractFlags(body);
-  if (flags.length) {
+  // Coaching notes: one row per criterion with its rationale. Gives the UI
+  // a live feed to render qualitative feedback beside the quantitative donut.
+  const notes = buildCoachingNotes(criteria);
+  if (notes.length) {
     const { error: notesErr } = await supabase
       .from("coaching_notes")
-      .insert(
-        flags.map((f) => ({
-          evaluation_id: evalRow.id,
-          flag_type: f.flag,
-          timestamp_in_call: f.at_seconds,
-          note: f.note,
-          severity: f.severity,
-        })),
-      );
+      .insert(notes.map((n) => ({ evaluation_id: evalRow.id, ...n })));
     if (notesErr) {
       return new Response(JSON.stringify({ error: notesErr.message }), { status: 500 });
     }
   }
 
-  return new Response(JSON.stringify({ evaluation_id: evalRow.id, flags_written: flags.length }), {
-    status: 200,
-    headers: { "content-type": "application/json" },
-  });
+  return new Response(
+    JSON.stringify({
+      evaluation_id: evalRow.id,
+      overall_score: overallScore,
+      criteria: criteriaDict,
+    }),
+    { status: 200, headers: { "content-type": "application/json" } },
+  );
 });

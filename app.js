@@ -320,6 +320,50 @@ async function endCall() {
   }
 }
 
+// Canonical 5 criteria shown on the scorecard, in display order.
+const CRITERIA = [
+  { id: 'empathy_and_acknowledgement', statusId: 'crit-empathy-status' },
+  { id: 'policy_accuracy',             statusId: 'crit-policy-status' },
+  { id: 'aircover_path_offered',       statusId: 'crit-aircover-status' },
+  { id: 'escalation_handling',         statusId: 'crit-escalation-status' },
+  { id: 'tone_and_professionalism',    statusId: 'crit-tone-status' },
+];
+
+function setCriterionState(critId, state, rationale) {
+  const def = CRITERIA.find((c) => c.id === critId);
+  if (!def) return;
+  const statusEl = $(def.statusId);
+  if (statusEl) statusEl.dataset.state = state;
+  const row = statusEl?.closest('.criterion');
+  if (row) row.dataset.state = state;
+  if (rationale != null) {
+    const rid = def.statusId.replace('-status', '-rationale');
+    const rEl = $(rid);
+    if (rEl) rEl.textContent = rationale;
+  }
+}
+
+function setDonut(score, totalCriteria) {
+  const donut = $('donut');
+  const num = $('donut-score');
+  if (!donut || !num) return;
+  const pct = Math.max(0, Math.min(100, (score / 10) * 100));
+  donut.style.setProperty('--pct', pct.toString());
+  donut.classList.remove('good', 'mid', 'bad');
+  if (score >= 8) donut.classList.add('good');
+  else if (score >= 5) donut.classList.add('mid');
+  else if (score > 0) donut.classList.add('bad');
+  num.textContent = String(score);
+  const label = $('scorecard-label');
+  const sub = $('scorecard-sub');
+  if (label && sub) {
+    if (score >= 8) { label.textContent = 'Strong performance'; sub.textContent = `${score}/10 — passed ${score/2} of ${totalCriteria ?? CRITERIA.length} criteria.`; }
+    else if (score >= 5) { label.textContent = 'Room to refine'; sub.textContent = `${score}/10 — review the missed criteria below.`; }
+    else if (score > 0) { label.textContent = 'Needs practice'; sub.textContent = `${score}/10 — focus on empathy first and the AirCover path.`; }
+    else { label.textContent = 'Awaiting call completion'; sub.textContent = 'Start the scenario — the evaluator scores 5 dimensions after you end the call.'; }
+  }
+}
+
 function resetCall() {
   stopTimer();
   state.startedAt = null;
@@ -330,21 +374,20 @@ function resetCall() {
   transcriptBody.innerHTML = '';
   transcriptMeta.textContent = '0 turns';
   timer.textContent = '00:00';
-  scorebar.classList.remove('visible');
-  btnAgain.style.display = 'none';
+  scorebar?.classList.remove('visible');
+  if (btnAgain) btnAgain.style.display = 'none';
   setStatus('idle');
   setOrb('idle', 'Tap begin to start the scenario', 'Sarah will open with a complaint about her cancelled booking. Your job: pull up the reservation, acknowledge the context, apply the Firm policy, and offer the AirCover path.');
   setActiveNode(null);
   $$('.obj').forEach((o) => o.classList.remove('hit'));
   btnStart.classList.remove('hide');
   btnEnd.classList.add('hide');
-  ['policy', 'empathy', 'tool', 'escalation'].forEach((k) => {
-    $(`crit-${k}-value`).textContent = '—';
-    $(`crit-${k}-fill`).style.width = '0%';
-    $(`sb-${k}`).textContent = '—';
-    $(`sb-${k}`).className = 'sb-value';
-  });
-  coachingList.innerHTML = `<div class="flag info placeholder"><div class="flag-icon">i</div><div><div class="flag-title">Coaching populates during and after the call</div><div class="flag-note">Each flag cites the exact phrasing Sarah responded to.</div></div><div class="flag-time">—</div></div>`;
+  // Reset criteria to pending + donut to 0
+  CRITERIA.forEach((c) => setCriterionState(c.id, 'pending', null));
+  setDonut(0);
+  const sbResult = $('sb-result');
+  if (sbResult) { sbResult.textContent = 'Scorecard populates in the right panel when the call ends.'; sbResult.classList.remove('live'); }
+  coachingList.innerHTML = `<div class="flag info placeholder"><div class="flag-icon">i</div><div><div class="flag-title">Feedback populates after the call</div><div class="flag-note">Each criterion shows the evaluator's rationale from ElevenLabs.</div></div><div class="flag-time">—</div></div>`;
   coachingCount.classList.add('hide');
 }
 
@@ -387,15 +430,12 @@ function handleToolEvent(evt) {
 function onLookupCalled(params) {
   hitObjective('lookup');
   liveScores.toolUsed = true;
-  updateLiveCriterion('tool', 1, 1);
-  $('crit-tool-value').textContent = 'Firing...';
   liveFlag(
     'tool_fired',
     'info',
     'lookup_reservation_fired',
     `Tool call dispatched with ${params.confirmation_code ?? 'no code'}. Reservation about to reveal.`,
   );
-  // Reveal the reservation card if one exists in the left panel.
   const card = document.getElementById('reservation-card');
   if (card) {
     card.classList.remove('hidden');
@@ -404,22 +444,10 @@ function onLookupCalled(params) {
 }
 
 function onLookupResponded(result) {
-  $('crit-tool-value').textContent = 'Used';
-  $('crit-tool-fill').style.width = '100%';
-  $('sb-tool').textContent = 'Used';
-  $('sb-tool').className = 'sb-value good';
-  if (result && typeof result === 'object') {
-    log('lookup_reservation result', result);
-  }
+  if (result && typeof result === 'object') log('lookup_reservation result', result);
 }
 
 // ---- Live coach (mid-call) -----------------------------------------------
-
-function updateLiveCriterion(key, value, max) {
-  const pct = Math.min(100, Math.round((value / max) * 100));
-  $(`crit-${key}-value`).textContent = `${value}/${max}`;
-  $(`crit-${key}-fill`).style.width = pct + '%';
-}
 function liveFlag(id, severity, type, note) {
   if (liveFlags.has(id)) return;
   liveFlags.add(id);
@@ -427,43 +455,33 @@ function liveFlag(id, severity, type, note) {
 }
 
 function inferObjectives(trainee) {
+  // Drives the LEFT-rail "Five moves to land" checklist in real time from
+  // trainee utterances. The authoritative scoring comes from the ElevenLabs
+  // eval webhook post-call — this is just qualitative progress feedback.
   const t = (trainee || '').toLowerCase();
 
   if (/pull up|pulling up|confirmation code|let me find|reservation (?:number|details)|hm[a-z0-9]{3,}/.test(t)) {
     hitObjective('lookup');
-    liveFlag('intent_lookup', 'info', 'lookup_intent_recognised', 'Trainee signalled reservation lookup before quoting policy. Tool call about to fire.');
+    liveFlag('intent_lookup', 'info', 'lookup_intent_recognised', 'Trainee signalled reservation lookup before quoting policy.');
   }
   if (/(i'?m so sorry|that sounds|incredibly stressful|difficult week|anniversary|documented illness|i understand|i hear you)/.test(t)) {
     hitObjective('empathy');
-    liveScores.empathyCount = Math.max(liveScores.empathyCount, 1);
-    $('crit-empathy-value').textContent = `${liveScores.empathyCount} strong`;
-    $('crit-empathy-fill').style.width = '65%';
-    liveFlag('strong_ack', 'info', 'strong_acknowledgement', `Acknowledged emotional context at ${formatTime(elapsed())}. Sets the tone for the rest of the call.`);
+    liveFlag('strong_ack', 'info', 'strong_acknowledgement', `Acknowledged emotional context at ${formatTime(elapsed())}.`);
   }
   if (/(firm (?:policy|cancellation)|five days|5 days|0\s?percent|zero percent|standard refund)/.test(t)) {
     hitObjective('policy');
-    liveScores.policy = Math.max(liveScores.policy, 6);
-    updateLiveCriterion('policy', liveScores.policy, 10);
-    liveFlag('policy_cited', 'info', 'policy_cited_correctly', 'Cited Firm policy and 5-day bracket. Correct baseline.');
+    liveFlag('policy_cited', 'info', 'policy_cited_correctly', 'Cited Firm policy and 5-day bracket.');
   }
   if (/(aircover|extenuating|reviewer|medical documentation|doctor'?s note)/.test(t)) {
     hitObjective('aircover');
-    liveScores.policy = Math.max(liveScores.policy, 9);
-    updateLiveCriterion('policy', liveScores.policy, 10);
-    liveFlag('aircover_path', 'info', 'aircover_path_offered', 'Offered AirCover extenuating-circumstances review because documentation exists — not a generic fallback.');
+    liveFlag('aircover_path', 'info', 'aircover_path_offered', 'Offered AirCover extenuating-circumstances review.');
   }
   if (/(supervisor|transfer you|escalat|connect you with|senior agent)/.test(t)) {
     hitObjective('escalation');
-    liveScores.escalationFired = true;
-    updateLiveCriterion('escalation', 1, 1);
-    $(`crit-escalation-value`).textContent = 'On time';
-    liveFlag('escalation_on_time', 'info', 'escalation_offered', 'Supervisor route offered within the 15-second window.');
+    liveFlag('escalation_on_time', 'info', 'escalation_offered', 'Supervisor route offered.');
   }
   if (/^(ok|okay|alright|so)[.,]/.test(t) && elapsed() < 15 && !liveFlags.has('strong_ack')) {
-    liveFlag('missed_empathy', 'warn', 'missed_emotional_context', 'Opened with a mechanical acknowledgement. No emotional acknowledgement in first 15s.');
-  }
-  if (/\b(0|zero)\s?percent|no refund/.test(t) && !liveFlags.has('intent_lookup')) {
-    liveFlag('premature_policy', 'miss', 'policy_quoted_before_lookup', 'Quoted 0% before lookup_reservation fired. Compliance risk — always verify the reservation first.');
+    liveFlag('missed_empathy', 'warn', 'missed_emotional_context', 'Opened with a mechanical acknowledgement.');
   }
 }
 
@@ -485,29 +503,36 @@ if (supa) {
 function paintEvaluation(row) {
   state.evaluationId = row.id;
   setActiveNode('end');
-  const policy = row.policy_score ?? 0;
-  updateLiveCriterion('policy', policy, 10);
-  const empathyCount = Array.isArray(row.empathy_flags) ? row.empathy_flags.length : 0;
-  $('crit-empathy-value').textContent = empathyCount ? `${empathyCount} flag${empathyCount === 1 ? '' : 's'}` : 'clean';
-  $('crit-empathy-fill').style.width = Math.min(100, empathyCount * 25) + '%';
-  const toolCalls = Array.isArray(row.tool_calls) ? row.tool_calls : [];
-  const toolUsed = toolCalls.some((t) => (t.tool ?? t.tool_name) === 'lookup_reservation');
-  $('crit-tool-value').textContent = toolUsed ? 'Used' : 'Missed';
-  $('crit-tool-fill').style.width = toolUsed ? '100%' : '0%';
-  const esc = row.escalation_flag;
-  $('crit-escalation-value').textContent = esc ? 'On time' : 'N/A';
-  $('crit-escalation-fill').style.width = esc ? '100%' : '0%';
-  $('sb-policy').textContent = `${policy}/10`;
-  $('sb-policy').className = 'sb-value ' + (policy >= 8 ? 'good' : policy >= 5 ? 'warn' : 'miss');
-  $('sb-empathy').textContent = empathyCount ? `${empathyCount} flag${empathyCount === 1 ? '' : 's'}` : 'clean';
-  $('sb-empathy').className = 'sb-value ' + (empathyCount > 0 ? 'warn' : 'good');
-  $('sb-tool').textContent = toolUsed ? 'Used' : 'Missed';
-  $('sb-tool').className = 'sb-value ' + (toolUsed ? 'good' : 'miss');
-  $('sb-escalation').textContent = esc ? 'On time' : 'N/A';
-  $('sb-escalation').className = 'sb-value ' + (esc ? 'good' : '');
-  scorebar.classList.add('visible');
-  btnAgain.style.display = '';
-  setOrb('idle', 'Scored. Review flags on the right.', `Final policy score ${policy}/10`);
+
+  // criteria_results is the canonical source of truth now. Shape:
+  //   { empathy_and_acknowledgement: { pass: bool, rationale: "..." }, ... }
+  const criteria = row.criteria_results && typeof row.criteria_results === 'object' ? row.criteria_results : {};
+  const overall = row.overall_score != null ? row.overall_score : computeOverallFromCriteria(criteria);
+
+  CRITERIA.forEach((c) => {
+    const r = criteria[c.id];
+    if (!r) { setCriterionState(c.id, 'pending', null); return; }
+    setCriterionState(c.id, r.pass ? 'pass' : 'fail', r.rationale || null);
+  });
+
+  setDonut(overall, CRITERIA.length);
+
+  const sbResult = $('sb-result');
+  if (sbResult) {
+    const passes = Object.values(criteria).filter((c) => c && c.pass).length;
+    sbResult.textContent = `Evaluator returned: ${overall}/10 · ${passes} of ${CRITERIA.length} criteria passed.`;
+    sbResult.classList.add('live');
+  }
+  scorebar?.classList.add('visible');
+  if (btnAgain) btnAgain.style.display = '';
+  setOrb('idle', `Scored ${overall}/10.`, 'Full breakdown in the scorecard panel on the right.');
+}
+
+function computeOverallFromCriteria(criteria) {
+  const entries = Object.values(criteria || {});
+  if (!entries.length) return 0;
+  const passes = entries.filter((c) => c && c.pass).length;
+  return Math.round((passes / entries.length) * 10);
 }
 
 function appendCoaching(note) {
@@ -624,12 +649,18 @@ async function runDemoScript() {
 }
 
 function applyDemoEvaluation() {
+  // Fabricated 4/5 pass for stage rehearsal without a live backend.
   const fake = {
     id: 'demo-' + Date.now(),
-    policy_score: 8,
+    overall_score: 8,
+    criteria_results: {
+      empathy_and_acknowledgement: { pass: true,  rationale: 'Opened with "I am so sorry you are dealing with this" before any policy talk.' },
+      policy_accuracy:             { pass: true,  rationale: 'Cited Firm cancellation policy and the 0% bracket at 5 days out cleanly.' },
+      aircover_path_offered:       { pass: true,  rationale: 'Offered an AirCover extenuating-circumstances review anchored to the doctor\'s note.' },
+      escalation_handling:         { pass: true,  rationale: 'Sarah did not mention chargeback — criterion not triggered (n/a counted as pass).' },
+      tone_and_professionalism:    { pass: false, rationale: 'Tone steadied after beat 3 but the opening read as slightly rushed — trainee should slow down.' },
+    },
     tool_calls: [{ tool: 'lookup_reservation', at_seconds: 12, ok: true }],
-    empathy_flags: [{ flag: 'strong_acknowledgement', at_seconds: 4 }],
-    escalation_flag: false,
   };
   paintEvaluation(fake);
   const notes = [
