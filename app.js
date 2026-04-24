@@ -271,6 +271,11 @@ async function startCall() {
         if (mode === 'speaking') setOrb('speaking', 'Sarah is speaking');
         else if (mode === 'listening') setOrb('listening', 'Sarah is listening', 'Your turn');
         else if (mode === 'thinking') setOrb('thinking', 'Sarah is thinking');
+        // Clear user-speaking class when Sarah takes over.
+        if (mode === 'speaking' || mode === 'thinking') {
+          orb.classList.remove('user-speaking');
+          orb.style.setProperty('--vol', '0');
+        }
       },
       onStatusChange: ({ status }) => log('status', status),
       onError: (err) => {
@@ -282,6 +287,20 @@ async function startCall() {
     });
     log('conversation started', state.convo);
     window.__convo = state.convo;
+    // Live-glow orb while the user is speaking. Poll getInputVolume() every 80ms
+    // and drive a --vol CSS var. Threshold 0.04 to ignore ambient noise.
+    if (state.volTimer) clearInterval(state.volTimer);
+    state.volTimer = setInterval(() => {
+      if (!state.convo?.getInputVolume) return;
+      const v = state.convo.getInputVolume();
+      if (v > 0.04) {
+        orb.classList.add('user-speaking');
+        orb.style.setProperty('--vol', String(Math.min(1, v * 3)));
+      } else {
+        orb.classList.remove('user-speaking');
+        orb.style.setProperty('--vol', '0');
+      }
+    }, 80);
     // Grab conversation_id so we can fetch the eval by ID after endCall.
     try {
       state.conversationId = state.convo?.getId?.() ?? state.convo?.conversationId ?? null;
@@ -310,6 +329,9 @@ async function endCall() {
   setOrb('thinking', 'Call ended — scoring...', 'Fetching evaluation from ElevenLabs. Scorecard appears in a few seconds.');
 
   const convoId = state.conversationId || state.convo?.getId?.() || null;
+  if (state.volTimer) { clearInterval(state.volTimer); state.volTimer = null; }
+  orb.classList.remove('user-speaking');
+  orb.style.setProperty('--vol', '0');
   if (state.convo) {
     try { await state.convo.endSession(); } catch (err) { log('endSession err', err); }
     state.convo = null;

@@ -748,6 +748,22 @@ kbd {
 }
 .orb.idle { transform: scale(0.88); filter: saturate(0.55) brightness(0.95); }
 .orb.listening { transform: scale(0.95); filter: saturate(0.8); }
+
+/* User is actively speaking — recolor orb cyan/teal to distinguish from Sarah's coral.
+   .user-speaking is added by JS when getInputVolume() exceeds a threshold. */
+.orb.user-speaking .orb-core {
+  background: radial-gradient(circle at 35% 30%, #FFFFFF 0%, #E1F7FF 35%, #5CC7E3 70%, #1C8FB8 100%);
+  box-shadow:
+    0 0 calc(60px + var(--vol, 0) * 80px) rgba(28, 143, 184, calc(0.25 + var(--vol, 0) * 0.5)),
+    0 40px 80px -20px rgba(28, 143, 184, 0.35),
+    inset 0 -15px 30px rgba(28, 143, 184, 0.3),
+    inset 0 8px 20px rgba(255, 255, 255, 0.35);
+  transition: box-shadow 80ms linear;
+}
+.orb.user-speaking .orb-ring {
+  background: radial-gradient(circle, rgba(92, 199, 227, calc(0.3 + var(--vol, 0) * 0.5)) 0%, transparent 65%);
+  opacity: 1;
+}
 .orb.thinking .orb-core { animation: thinking-pulse 1.4s var(--ease-in-out) infinite; }
 .orb.speaking { animation: orb-breathe 1.4s var(--ease-in-out) infinite; }
 .orb.speaking .orb-ring { opacity: 1; animation: orb-halo 2s var(--ease-in-out) infinite; }
