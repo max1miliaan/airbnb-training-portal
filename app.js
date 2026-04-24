@@ -22,6 +22,8 @@ const env = window.__ENV ?? {};
 const HAS_AGENT = Boolean(env.ELEVENLABS_AGENT_ID);
 const HAS_SUPABASE = Boolean(env.SUPABASE_URL && env.SUPABASE_ANON_KEY);
 const SCENARIO_ID = '33333333-3333-3333-3333-333333333333';
+const TRAINEE_NAME = env.TRAINEE_NAME ?? 'Max';
+const TRAINEE_SITE = env.TRAINEE_SITE ?? 'Atlanta';
 
 const supa = HAS_SUPABASE ? createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY) : null;
 
@@ -224,6 +226,11 @@ async function startCall() {
   try {
     state.convo = await Conversation.startSession({
       agentId: env.ELEVENLABS_AGENT_ID,
+      // Inject runtime context so Sarah's prompt renders `{{trainee_name}}` + `{{site}}`.
+      dynamicVariables: {
+        trainee_name: TRAINEE_NAME,
+        site: TRAINEE_SITE,
+      },
       onConnect: () => {
         setStatus('live');
         setOrb('listening', 'Sarah is connecting...', 'Your turn in a moment');
@@ -234,15 +241,17 @@ async function startCall() {
         if (state.status !== 'ended') endCall();
       },
       onMessage: (evt) => {
-        // Shape: { source: 'user' | 'ai', message: string }
+        // Shape: { source: 'user' | 'ai', message: string, ... }
+        // Also observed: { type: 'client_tool_call' | 'agent_tool_response', ... } variants.
         log('message', evt);
+        handleToolEvent(evt);
         const src = evt.source ?? evt.role ?? 'ai';
         const text = evt.message ?? evt.text ?? '';
         if (!text.trim()) return;
         if (src === 'user') {
           addLine('agent', text);
           inferObjectives(text);
-        } else {
+        } else if (src === 'ai' || src === 'agent') {
           addLine('guest', text);
         }
       },
@@ -257,7 +266,7 @@ async function startCall() {
         log('error', err);
         addLine('system', `Error: ${err?.message ?? err}. Press F for fallback.`);
       },
-      // Client tools callable from the agent side (none for now; placeholder).
+      // Client tools callable from the agent side (none defined server-side; placeholder).
       clientTools: {},
     });
     log('conversation started', state.convo);
@@ -318,6 +327,71 @@ function resetCall() {
   });
   coachingList.innerHTML = `<div class="flag info placeholder"><div class="flag-icon">i</div><div><div class="flag-title">Coaching populates during and after the call</div><div class="flag-note">Each flag cites the exact phrasing Sarah responded to.</div></div><div class="flag-time">—</div></div>`;
   coachingCount.classList.add('hide');
+}
+
+// ---- Tool events ---------------------------------------------------------
+// The ElevenLabs SDK emits tool activity across several event shapes depending
+// on version. We catch them all here so the audience sees the `lookup_reservation`
+// call land in the transcript + flash the rubric + reveal the reservation card.
+
+const _seenToolCalls = new Set();
+
+function handleToolEvent(evt) {
+  if (!evt || typeof evt !== 'object') return;
+  const kind = evt.type ?? evt.event ?? null;
+  const isToolCall = kind === 'client_tool_call' || kind === 'tool_call' || evt.tool_call || evt.client_tool_call;
+  const isToolResp = kind === 'agent_tool_response' || kind === 'tool_response' || evt.tool_response;
+
+  if (isToolCall) {
+    const call = evt.client_tool_call ?? evt.tool_call ?? evt;
+    const toolName = call.tool_name ?? call.name ?? 'unknown_tool';
+    const callId = call.tool_call_id ?? call.id ?? `${toolName}-${Date.now()}`;
+    if (_seenToolCalls.has(callId)) return;
+    _seenToolCalls.add(callId);
+    const params = call.parameters ?? call.arguments ?? {};
+    const paramStr = Object.entries(params).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(' ');
+    addLine('tool', `${toolName}(${paramStr})`, { time: elapsed() });
+    if (toolName === 'lookup_reservation') {
+      onLookupCalled(params);
+    }
+  }
+
+  if (isToolResp) {
+    const resp = evt.tool_response ?? evt;
+    const toolName = resp.tool_name ?? resp.name ?? 'tool';
+    if (toolName === 'lookup_reservation') {
+      onLookupResponded(resp.result ?? resp.response_data ?? null);
+    }
+  }
+}
+
+function onLookupCalled(params) {
+  hitObjective('lookup');
+  liveScores.toolUsed = true;
+  updateLiveCriterion('tool', 1, 1);
+  $('crit-tool-value').textContent = 'Firing...';
+  liveFlag(
+    'tool_fired',
+    'info',
+    'lookup_reservation_fired',
+    `Tool call dispatched with ${params.confirmation_code ?? 'no code'}. Reservation about to reveal.`,
+  );
+  // Reveal the reservation card if one exists in the left panel.
+  const card = document.getElementById('reservation-card');
+  if (card) {
+    card.classList.remove('hidden');
+    card.classList.add('reveal');
+  }
+}
+
+function onLookupResponded(result) {
+  $('crit-tool-value').textContent = 'Used';
+  $('crit-tool-fill').style.width = '100%';
+  $('sb-tool').textContent = 'Used';
+  $('sb-tool').className = 'sb-value good';
+  if (result && typeof result === 'object') {
+    log('lookup_reservation result', result);
+  }
 }
 
 // ---- Live coach (mid-call) -----------------------------------------------
