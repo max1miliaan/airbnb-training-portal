@@ -40,7 +40,6 @@ const statusLabel = $('status-label');
 const timer = $('timer');
 const btnStart = $('btn-start');
 const btnEnd = $('btn-end');
-const btnMic = $('btn-mic');
 const btnAgain = $('btn-again');
 const scorebar = $('scorebar');
 const transcriptBody = $('transcript-body');
@@ -59,7 +58,6 @@ const state = {
   turnCount: 0,
   activeNode: null,
   evaluationId: null,
-  micMuted: false,
   objectives: new Set(),
   convo: null,
 };
@@ -171,14 +169,12 @@ $$('.tab').forEach((t) => {
 btnStart.addEventListener('click', startCall);
 btnEnd.addEventListener('click', endCall);
 btnAgain.addEventListener('click', resetCall);
-btnMic.addEventListener('click', toggleMic);
 $('fallback-close').addEventListener('click', toggleFallback);
 
 document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   if (e.key === 'f' || e.key === 'F') toggleFallback();
   if (e.key === 'Escape' && fallbackEl.classList.contains('visible')) toggleFallback();
-  if (e.key === 'm' || e.key === 'M') toggleMic();
 });
 
 function toggleFallback() {
@@ -190,13 +186,6 @@ function toggleFallback() {
   } else {
     fallbackVideo.pause();
   }
-}
-
-function toggleMic() {
-  state.micMuted = !state.micMuted;
-  btnMic.classList.toggle('muted', state.micMuted);
-  if (state.convo?.setMicMuted) state.convo.setMicMuted(state.micMuted);
-  log('mic', state.micMuted ? 'muted' : 'unmuted');
 }
 
 // ---- Call lifecycle -------------------------------------------------------
@@ -290,10 +279,6 @@ async function startCall() {
     log('conversation started', state.convo);
     // Expose for debugging from devtools console
     window.__convo = state.convo;
-    // Reset mute state to NOT muted when a new session starts.
-    state.micMuted = false;
-    btnMic.classList.remove('muted');
-    if (state.convo?.setMicMuted) state.convo.setMicMuted(false);
   } catch (err) {
     // Surface the real error instead of silently dropping into demo mode —
     // easier to debug on stage, and the presenter can retry with Begin.
