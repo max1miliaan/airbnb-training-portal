@@ -204,7 +204,6 @@ async function startCall() {
   setStatus('connecting');
   setOrb('thinking', 'Connecting to Sarah...', 'Requesting microphone access');
   setActiveNode('start');
-  addLine('system', 'Call session starting — microphone permission requested.');
 
   // Gate on permissions API instead of pre-grabbing the mic — the SDK does its
   // own getUserMedia internally and a probe-then-release pattern races with it
@@ -282,8 +281,12 @@ async function startCall() {
       clientTools: {},
     });
     log('conversation started', state.convo);
-    // Expose for debugging from devtools console
     window.__convo = state.convo;
+    // Grab conversation_id so we can fetch the eval by ID after endCall.
+    try {
+      state.conversationId = state.convo?.getId?.() ?? state.convo?.conversationId ?? null;
+      log('conversation_id', state.conversationId);
+    } catch (e) { log('getId err', e); }
   } catch (err) {
     // Surface the real error instead of silently dropping into demo mode —
     // easier to debug on stage, and the presenter can retry with Begin.
@@ -304,8 +307,9 @@ async function endCall() {
   stopTimer();
   setStatus('ended');
   setActiveNode('debrief');
-  setOrb('thinking', 'Call ended — scoring...', 'ElevenLabs is evaluating the transcript. Scorecard appears in a few seconds.');
+  setOrb('thinking', 'Call ended — scoring...', 'Fetching evaluation from ElevenLabs. Scorecard appears in a few seconds.');
 
+  const convoId = state.conversationId || state.convo?.getId?.() || null;
   if (state.convo) {
     try { await state.convo.endSession(); } catch (err) { log('endSession err', err); }
     state.convo = null;
@@ -313,13 +317,61 @@ async function endCall() {
 
   if (!HAS_SUPABASE) {
     setTimeout(applyDemoEvaluation, 900);
-  } else {
-    addLine('system', 'Waiting for post-call evaluation from ElevenLabs...');
-    // Safety net: if the webhook never arrives (e.g. auth mismatch), surface a
-    // useful fallback message after 45 seconds instead of leaving the orb spinning.
+    return;
+  }
+
+  if (!convoId) {
+    setOrb('idle', 'No conversation ID captured.', 'Could not fetch scorecard. Press Shift+R and try again.');
+    return;
+  }
+
+  // Pull the evaluation directly from ElevenLabs via the Supabase edge proxy.
+  // More reliable than waiting for the webhook to fire + verify HMAC.
+  try {
+    const r = await fetch(`${env.SUPABASE_URL}/functions/v1/fetch-evaluation`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': env.SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${env.SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ conversation_id: convoId, trainee_name: TRAINEE_NAME }),
+    });
+    if (!r.ok) throw new Error(`fetch-evaluation ${r.status}`);
+    const data = await r.json();
+    log('fetch-evaluation ok', data);
+    // paintEvaluation will fire via Realtime INSERT — but also paint immediately
+    // in case realtime is slow.
+    if (data.overall_score != null) {
+      paintEvaluation({
+        id: data.evaluation_id,
+        overall_score: data.overall_score,
+        criteria_results: data.criteria,
+        escalation_flag: data.criteria?.escalation_handling?.pass ?? false,
+        empathy_flags: [],
+        tool_calls: [],
+      });
+      // Also surface each criterion as a coaching note with evaluator badge.
+      Object.entries(data.criteria || {}).forEach(([id, c]) => {
+        appendCoaching({
+          flag_type: c.pass ? `${id}_passed` : `${id}_missed`,
+          severity: c.pass ? 'info' : 'miss',
+          note: c.rationale,
+          timestamp_in_call: 0,
+          source: 'evaluator',
+        });
+      });
+    }
+  } catch (err) {
+    log('fetch-evaluation failed', err);
+    setOrb('idle', 'Evaluation fetch failed.', `${err.message}. Press Shift+R and try again.`);
+  }
+
+  {
+    // Safety net for orb stall
     state.evalTimeout = setTimeout(() => {
       if (!state.evaluationId) {
-        setOrb('idle', 'Still waiting on evaluator...', 'Check the edge function logs if this persists. Press Shift+R to reset.');
+        setOrb('idle', 'Still waiting on evaluator...', 'Press Shift+R to reset.');
       }
     }, 45000);
   }
