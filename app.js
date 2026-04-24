@@ -455,7 +455,7 @@ function resetCall() {
   setDonut(0);
   const sbResult = $('sb-result');
   if (sbResult) { sbResult.textContent = 'Scorecard populates in the right panel when the call ends.'; sbResult.classList.remove('live'); }
-  coachingList.innerHTML = `<div class="flag info placeholder"><div class="flag-icon">i</div><div><div class="flag-title">Feedback populates after the call</div><div class="flag-note">Each criterion shows the evaluator's rationale from ElevenLabs.</div></div><div class="flag-time">—</div></div>`;
+  coachingList.innerHTML = `<div class="flag info placeholder"><div class="flag-icon">i</div><div><div class="flag-title">Feedback populates during the call</div><div class="flag-note">Live checks stream in as you speak. Evaluator rationale arrives when the call ends and auto-switches to the Scorecard.</div></div><div class="flag-time">—</div></div>`;
   coachingCount.classList.add('hide');
 }
 
