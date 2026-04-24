@@ -253,18 +253,18 @@ async function startCall() {
         if (state.status !== 'ended') endCall();
       },
       onMessage: (evt) => {
-        // Shape: { source: 'user' | 'ai', message: string, ... }
-        // Also observed: { type: 'client_tool_call' | 'agent_tool_response', ... } variants.
+        // SDK 0.8.1 primary shape: { source: 'user' | 'ai', message: string }
+        // Also handle: { role, text }, { type, ... } tool-call variants.
         log('message', evt);
         handleToolEvent(evt);
-        const src = evt.source ?? evt.role ?? 'ai';
-        const text = evt.message ?? evt.text ?? '';
-        if (!text.trim()) return;
-        if (src === 'user') {
-          addLine('agent', text);
-          inferObjectives(text);
-        } else if (src === 'ai' || src === 'agent') {
-          addLine('guest', text);
+        const src = evt.source ?? evt.role ?? (evt.type?.includes('user') ? 'user' : 'ai');
+        const text = evt.message ?? evt.text ?? evt.content ?? '';
+        if (!text || !String(text).trim()) return;
+        if (src === 'user' || src === 'human') {
+          addLine('agent', String(text));
+          inferObjectives(String(text));
+        } else {
+          addLine('guest', String(text));
         }
       },
       onModeChange: ({ mode }) => {

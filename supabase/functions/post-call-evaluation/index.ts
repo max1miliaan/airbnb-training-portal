@@ -145,12 +145,19 @@ Deno.serve(async (req) => {
     return new Response("signature invalid", { status: 401 });
   }
 
-  let body: Record<string, unknown>;
+  let envelope: Record<string, unknown>;
   try {
-    body = JSON.parse(rawBody);
+    envelope = JSON.parse(rawBody);
   } catch {
     return new Response("bad json", { status: 400 });
   }
+
+  // ElevenLabs post-call webhooks are wrapped: { type, data: {...}, event_timestamp }.
+  // Some older agent versions post the data object directly. Handle both shapes.
+  const body: Record<string, unknown> =
+    (envelope.data && typeof envelope.data === "object"
+      ? (envelope.data as Record<string, unknown>)
+      : envelope);
 
   const conversationId = (body.conversation_id as string | undefined) ?? null;
 
