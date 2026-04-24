@@ -183,7 +183,13 @@ document.addEventListener('keydown', (e) => {
 
 function toggleFallback() {
   const v = fallbackEl.classList.toggle('visible');
-  if (!v) fallbackVideo.pause();
+  if (v) {
+    // Lazy-load the src on first open so a missing file doesn't 404 on every page load.
+    const src = fallbackVideo.dataset.src;
+    if (src && !fallbackVideo.src) fallbackVideo.src = src;
+  } else {
+    fallbackVideo.pause();
+  }
 }
 
 function toggleMic() {
