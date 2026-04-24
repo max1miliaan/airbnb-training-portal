@@ -325,9 +325,21 @@ async function endCall() {
     return;
   }
 
-  // Pull the evaluation directly from ElevenLabs via the Supabase edge proxy.
-  // More reliable than waiting for the webhook to fire + verify HMAC.
-  try {
+  // Progress feedback — ElevenLabs eval analysis takes 10-30s after end_call.
+  // Tick the orb subtitle every 3s so the user sees it's actively working.
+  let elapsed = 0;
+  const progressTimer = setInterval(() => {
+    elapsed += 3;
+    if (!state.evaluationId) {
+      setOrb('thinking', 'Call ended — scoring...', `Evaluator is reviewing the transcript (${elapsed}s).`);
+    } else {
+      clearInterval(progressTimer);
+    }
+  }, 3000);
+
+  // Direct-fetch evaluation. Retries up to 3 times if the ElevenLabs analysis
+  // pipeline hasn't finished yet (504 from the edge proxy).
+  const doFetch = async (attempt) => {
     const r = await fetch(`${env.SUPABASE_URL}/functions/v1/fetch-evaluation`, {
       method: 'POST',
       headers: {
@@ -337,11 +349,19 @@ async function endCall() {
       },
       body: JSON.stringify({ conversation_id: convoId, trainee_name: TRAINEE_NAME }),
     });
+    if (r.status === 504 && attempt < 3) {
+      log(`fetch-evaluation attempt ${attempt} timed out; retrying in 10s`);
+      await new Promise((res) => setTimeout(res, 10000));
+      return doFetch(attempt + 1);
+    }
     if (!r.ok) throw new Error(`fetch-evaluation ${r.status}`);
-    const data = await r.json();
+    return r.json();
+  };
+
+  try {
+    const data = await doFetch(1);
+    clearInterval(progressTimer);
     log('fetch-evaluation ok', data);
-    // paintEvaluation will fire via Realtime INSERT — but also paint immediately
-    // in case realtime is slow.
     if (data.overall_score != null) {
       paintEvaluation({
         id: data.evaluation_id,
@@ -351,7 +371,6 @@ async function endCall() {
         empathy_flags: [],
         tool_calls: [],
       });
-      // Also surface each criterion as a coaching note with evaluator badge.
       Object.entries(data.criteria || {}).forEach(([id, c]) => {
         appendCoaching({
           flag_type: c.pass ? `${id}_passed` : `${id}_missed`,
@@ -363,17 +382,9 @@ async function endCall() {
       });
     }
   } catch (err) {
+    clearInterval(progressTimer);
     log('fetch-evaluation failed', err);
     setOrb('idle', 'Evaluation fetch failed.', `${err.message}. Press Shift+R and try again.`);
-  }
-
-  {
-    // Safety net for orb stall
-    state.evalTimeout = setTimeout(() => {
-      if (!state.evaluationId) {
-        setOrb('idle', 'Still waiting on evaluator...', 'Press Shift+R to reset.');
-      }
-    }, 45000);
   }
 }
 

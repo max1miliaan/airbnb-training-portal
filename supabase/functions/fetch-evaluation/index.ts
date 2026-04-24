@@ -41,13 +41,31 @@ Deno.serve(async (req) => {
   let body: { conversation_id?: string; trainee_name?: string };
   try { body = await req.json(); } catch { return new Response("bad json", { status: 400, headers: CORS }); }
 
-  const conversationId = body.conversation_id;
-  if (!conversationId) return new Response("conversation_id required", { status: 400, headers: CORS });
+  let conversationId = body.conversation_id;
+
+  // Fallback: if the portal couldn't capture the conversation_id, find the most
+  // recent conversation for this agent within the last 5 minutes.
+  if (!conversationId) {
+    const agentId = body.agent_id ?? "agent_6301kpzby1v6e7htj43jkk6zef64";
+    const r = await fetch(
+      `https://api.elevenlabs.io/v1/convai/conversations?agent_id=${agentId}&page_size=1`,
+      { headers: { "xi-api-key": ELEVENLABS_API_KEY } },
+    );
+    if (r.ok) {
+      const list = await r.json();
+      const latest = (list.conversations ?? [])[0];
+      if (latest?.conversation_id && latest.status === "done") {
+        conversationId = latest.conversation_id;
+      }
+    }
+  }
+
+  if (!conversationId) return new Response("conversation_id required and no recent call found", { status: 400, headers: CORS });
 
   // Poll the ElevenLabs API for the conversation — analysis can take 3-10s to appear.
   let analysis: Record<string, unknown> | null = null;
   let conv: Record<string, unknown> | null = null;
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 30; i++) {
     const r = await fetch(`https://api.elevenlabs.io/v1/convai/conversations/${conversationId}`, {
       headers: { "xi-api-key": ELEVENLABS_API_KEY },
     });
@@ -57,7 +75,7 @@ Deno.serve(async (req) => {
       const crit = analysis?.evaluation_criteria_results as Record<string, unknown> | undefined;
       if (crit && Object.keys(crit).length > 0) break;
     }
-    await new Promise((res) => setTimeout(res, 2000));
+    await new Promise((res) => setTimeout(res, 3000));
   }
 
   if (!analysis || !conv) {
