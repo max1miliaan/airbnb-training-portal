@@ -111,7 +111,7 @@ function hitObjective(key) {
   const el = document.querySelector(`.obj[data-obj="${key}"]`);
   if (el) el.classList.add('hit');
   const fill = $('obj-progress-fill');
-  if (fill) fill.style.width = (state.objectives.size * 20) + '%';
+  if (fill) fill.style.width = (state.objectives.size * 25) + '%';
 }
 
 function tickTimer() {
@@ -304,7 +304,7 @@ async function endCall() {
   stopTimer();
   setStatus('ended');
   setActiveNode('debrief');
-  setOrb('thinking', 'Debrief running...', 'Coach breaking down policy, empathy, tool use, escalation');
+  setOrb('thinking', 'Call ended — scoring...', 'ElevenLabs is evaluating the transcript. Scorecard appears in a few seconds.');
 
   if (state.convo) {
     try { await state.convo.endSession(); } catch (err) { log('endSession err', err); }
@@ -312,11 +312,16 @@ async function endCall() {
   }
 
   if (!HAS_SUPABASE) {
-    // Demo mode — paint fabricated evaluation after a short beat
     setTimeout(applyDemoEvaluation, 900);
   } else {
-    // Live mode: wait for the webhook -> Realtime push.
-    addLine('system', 'Waiting for post-call evaluation from ElevenLabs webhook...');
+    addLine('system', 'Waiting for post-call evaluation from ElevenLabs...');
+    // Safety net: if the webhook never arrives (e.g. auth mismatch), surface a
+    // useful fallback message after 45 seconds instead of leaving the orb spinning.
+    state.evalTimeout = setTimeout(() => {
+      if (!state.evaluationId) {
+        setOrb('idle', 'Still waiting on evaluator...', 'Check the edge function logs if this persists. Press Shift+R to reset.');
+      }
+    }, 45000);
   }
 }
 
@@ -503,6 +508,10 @@ if (supa) {
 function paintEvaluation(row) {
   state.evaluationId = row.id;
   setActiveNode('end');
+  if (state.evalTimeout) { clearTimeout(state.evalTimeout); state.evalTimeout = null; }
+  // Auto-switch to the Scorecard tab so the donut reveal is the money shot.
+  const scorecardTab = document.querySelector('.tab[data-tab="eval"]');
+  if (scorecardTab && !scorecardTab.classList.contains('active')) scorecardTab.click();
 
   // criteria_results is the canonical source of truth now. Shape:
   //   { empathy_and_acknowledgement: { pass: bool, rationale: "..." }, ... }

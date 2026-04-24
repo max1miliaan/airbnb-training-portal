@@ -63,17 +63,16 @@
       <!-- Objectives promoted to top-of-rail: trainee's heads-up checklist -->
       <div class="card card-objectives">
         <div class="card-head compact">
-          <div class="eyebrow">Objectives · Five moves to land</div>
+          <div class="eyebrow">Objectives · Four moves to land</div>
           <div class="obj-progress">
             <div class="obj-progress-fill" id="obj-progress-fill"></div>
           </div>
         </div>
         <div class="card-body brief-objectives">
-          <div class="obj" data-obj="lookup"><span class="obj-num">1</span><span class="obj-text">Pull up the reservation before quoting policy</span></div>
-          <div class="obj" data-obj="empathy"><span class="obj-num">2</span><span class="obj-text">Acknowledge the anniversary and illness first</span></div>
+          <div class="obj" data-obj="empathy"><span class="obj-num">1</span><span class="obj-text">Acknowledge the anniversary and illness first</span></div>
+          <div class="obj" data-obj="lookup"><span class="obj-num">2</span><span class="obj-text">Pull up the reservation before quoting policy</span></div>
           <div class="obj" data-obj="policy"><span class="obj-num">3</span><span class="obj-text">Explain Firm policy and 0% bracket clearly</span></div>
           <div class="obj" data-obj="aircover"><span class="obj-num">4</span><span class="obj-text">Offer AirCover extenuating-circumstances review</span></div>
-          <div class="obj" data-obj="escalation"><span class="obj-num">5</span><span class="obj-text">Escalate within 15s if chargeback is mentioned</span></div>
         </div>
       </div>
 
@@ -147,14 +146,14 @@
         <div class="system-eyebrow">Airbnb Learning · Scorecard</div>
         <h3>Trainee performance</h3>
         <div class="tabs" role="tablist" aria-label="Training scorecard">
-          <button class="tab active" data-tab="eval" role="tab">Scorecard</button>
-          <button class="tab" data-tab="coaching" role="tab">Feedback <span class="tab-count hide" id="coaching-count">0</span></button>
+          <button class="tab active" data-tab="coaching" role="tab">Live feedback <span class="tab-count hide" id="coaching-count">0</span></button>
+          <button class="tab" data-tab="eval" role="tab">Scorecard</button>
           <button class="tab" data-tab="dashboard" role="tab">Cohort</button>
         </div>
       </div>
 
-      <!-- Scorecard panel (default) -->
-      <div class="panel active" id="panel-eval" role="tabpanel">
+      <!-- Scorecard panel (revealed after eval lands) -->
+      <div class="panel" id="panel-eval" role="tabpanel">
         <!-- Overall score donut -->
         <div class="scorecard-hero" id="scorecard-hero">
           <div class="donut" id="donut" style="--pct: 0;">
@@ -215,7 +214,7 @@
       </div>
 
       <!-- Coaching panel -->
-      <div class="panel" id="panel-coaching" role="tabpanel">
+      <div class="panel active" id="panel-coaching" role="tabpanel">
         <div id="coaching-list">
           <div class="flag info placeholder">
             <div class="flag-icon">i</div>

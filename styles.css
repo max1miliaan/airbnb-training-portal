@@ -813,11 +813,14 @@ kbd {
 .line {
   display: flex;
   gap: var(--s-3);
-  opacity: 0;
-  transform: translateY(8px);
-  animation: line-in var(--t-slow) var(--ease-out) forwards;
+  opacity: 1;
+  transform: translateY(0);
+  animation: line-in var(--t-slow) var(--ease-out);
 }
-@keyframes line-in { to { opacity: 1; transform: translateY(0); } }
+@keyframes line-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 .line-role {
   flex-shrink: 0;
   font-family: var(--font-mono);
