@@ -7,4 +7,7 @@ window.__ENV = {
   SUPABASE_ANON_KEY: 'YOUR_SUPABASE_ANON_KEY',
   // Live ElevenLabs agent — already deployed via CLI on 2026-04-24.
   ELEVENLABS_AGENT_ID: 'agent_6301kpzby1v6e7htj43jkk6zef64',
+  // Injected into the agent's prompt at startSession — fill these in per-demo.
+  TRAINEE_NAME: 'Max',
+  TRAINEE_SITE: 'Atlanta',
 };
