@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1280, initial-scale=1" />
+<title>Agent Training · Airbnb Learning</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="styles.css" />
+<link rel="icon" href="data:image/svg+xml;utf8,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2094%20100'%3E%3Cpath%20fill='%23FF385C'%20d='M91.5,71c-0.5-1.2-1-2.5-1.5-3.6c-0.8-1.8-1.6-3.5-2.3-5.1l-0.1-0.1C80.7,47.2,73.3,32,65.5,17l-0.3-0.6c-0.8-1.5-1.6-3.1-2.4-4.7c-1-1.8-2-3.7-3.6-5.5C56,2.2,51.4,0,46.5,0s-9.5,2.2-12.8,6c-1.5,1.8-2.6,3.7-3.6,5.5c-0.8,1.6-1.6,3.2-2.4,4.7l-0.3,0.6C19.7,31.8,12.2,47,5.3,62l-0.1,0.2c-0.7,1.6-1.5,3.3-2.3,5.1c-0.5,1.1-1,2.3-1.5,3.6c-1.3,3.7-1.7,7.2-1.2,10.8c1.1,7.5,6.1,13.8,13,16.6c2.6,1.1,5.3,1.6,8.1,1.6c0.8,0,1.8-0.1,2.6-0.2c3.3-0.4,6.7-1.5,10-3.4c4.1-2.3,8-5.6,12.4-10.4c4.4,4.8,8.4,8.1,12.4,10.4c3.3,1.9,6.7,3,10,3.4c0.8,0.1,1.8,0.2,2.6,0.2c2.8,0,5.6-0.5,8.1-1.6c7-2.8,11.9-9.2,13-16.6C93.2,78.2,92.8,74.7,91.5,71z'/%3E%3C/svg%3E" />
+</head>
+<body>
+<div class="app">
+
+  <!-- Top nav =========================================================== -->
+  <header class="top">
+    <a href="#" class="brand" aria-label="Airbnb Learning">
+      <svg viewBox="0 0 320.1 99.9" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" class="ab-logo">
+        <path fill="#FF385C" d="M168.7,25.1c0,3.6-2.9,6.5-6.5,6.5s-6.5-2.9-6.5-6.5s2.8-6.5,6.5-6.5C165.9,18.7,168.7,21.6,168.7,25.1z M141.9,38.2c0,0.6,0,1.6,0,1.6s-3.1-4-9.7-4c-10.9,0-19.4,8.3-19.4,19.8c0,11.4,8.4,19.8,19.4,19.8c6.7,0,9.7-4.1,9.7-4.1v1.7 c0,0.8,0.6,1.4,1.4,1.4h8.1V36.8c0,0-7.4,0-8.1,0C142.5,36.8,141.9,37.5,141.9,38.2z M141.9,62.3c-1.5,2.2-4.5,4.1-8.1,4.1 c-6.4,0-11.3-4-11.3-10.8s4.9-10.8,11.3-10.8c3.5,0,6.7,2,8.1,4.1V62.3z M157.4,36.8h9.6v37.6h-9.6V36.8z M300.8,35.8 c-6.6,0-9.7,4-9.7,4V18.7h-9.6v55.7c0,0,7.4,0,8.1,0c0.8,0,1.4-0.7,1.4-1.4v-1.7l0,0c0,0,3.1,4.1,9.7,4.1c10.9,0,19.4-8.4,19.4-19.8 C320.1,44.2,311.6,35.8,300.8,35.8z M299.2,66.3c-3.7,0-6.6-1.9-8.1-4.1V48.8c1.5-2,4.7-4.1,8.1-4.1c6.4,0,11.3,4,11.3,10.8 S305.6,66.3,299.2,66.3z M276.5,52.1v22.4h-9.6V53.2c0-6.2-2-8.7-7.4-8.7c-2.9,0-5.9,1.5-7.8,3.7v26.2h-9.6V36.8h7.6 c0.8,0,1.4,0.7,1.4,1.4v1.6c2.8-2.9,6.5-4,10.2-4c4.2,0,7.7,1.2,10.5,3.6C275.2,42.2,276.5,45.8,276.5,52.1z M218.8,35.8 c-6.6,0-9.7,4-9.7,4V18.7h-9.6v55.7c0,0,7.4,0,8.1,0c0.8,0,1.4-0.7,1.4-1.4v-1.7l0,0c0,0,3.1,4.1,9.7,4.1c10.9,0,19.4-8.4,19.4-19.8 C238.2,44.2,229.7,35.8,218.8,35.8z M217.2,66.3c-3.7,0-6.6-1.9-8.1-4.1V48.8c1.5-2,4.7-4.1,8.1-4.1c6.4,0,11.3,4,11.3,10.8 S223.6,66.3,217.2,66.3z M191.2,35.8c2.9,0,4.4,0.5,4.4,0.5v8.9c0,0-8-2.7-13,3v26.3h-9.6V36.8c0,0,7.4,0,8.1,0 c0.8,0,1.4,0.7,1.4,1.4v1.6C184.3,37.7,188.2,35.8,191.2,35.8z M91.5,71c-0.5-1.2-1-2.5-1.5-3.6c-0.8-1.8-1.6-3.5-2.3-5.1l-0.1-0.1 c-6.9-15-14.3-30.2-22.1-45.2l-0.3-0.6c-0.8-1.5-1.6-3.1-2.4-4.7c-1-1.8-2-3.7-3.6-5.5C56,2.2,51.4,0,46.5,0c-5,0-9.5,2.2-12.8,6 c-1.5,1.8-2.6,3.7-3.6,5.5c-0.8,1.6-1.6,3.2-2.4,4.7l-0.3,0.6C19.7,31.8,12.2,47,5.3,62l-0.1,0.2c-0.7,1.6-1.5,3.3-2.3,5.1 c-0.5,1.1-1,2.3-1.5,3.6c-1.3,3.7-1.7,7.2-1.2,10.8c1.1,7.5,6.1,13.8,13,16.6c2.6,1.1,5.3,1.6,8.1,1.6c0.8,0,1.8-0.1,2.6-0.2 c3.3-0.4,6.7-1.5,10-3.4c4.1-2.3,8-5.6,12.4-10.4c4.4,4.8,8.4,8.1,12.4,10.4c3.3,1.9,6.7,3,10,3.4c0.8,0.1,1.8,0.2,2.6,0.2 c2.8,0,5.6-0.5,8.1-1.6c7-2.8,11.9-9.2,13-16.6C93.2,78.2,92.8,74.7,91.5,71z"/>
+      </svg>
+      <span class="brand-module">Learning</span>
+    </a>
+    <nav class="top-nav" aria-label="Primary">
+      <a href="#" class="active">Training</a>
+      <a href="#">Quality</a>
+      <a href="#">Scenarios</a>
+      <a href="#">Reports</a>
+    </nav>
+    <div class="top-right">
+      <div class="env-pill" id="env-pill" title="Live = agent + Supabase wired; Demo = fabricated script">Live</div>
+      <span class="top-meta">Cork · TELUS Cohort 2026-16</span>
+      <div class="avatar" aria-hidden="true">PK</div>
+    </div>
+  </header>
+
+  <!-- Session context bar =============================================== -->
+  <div class="sub">
+    <div class="sub-breadcrumb">
+      <a href="#">Training</a>
+      <span class="crumb-sep">/</span>
+      <a href="#">Cancellation Dispute</a>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-current">Practice</span>
+    </div>
+    <div class="sub-title">
+      <strong>Cancellation dispute — Firm policy, 5 days out</strong>
+      <span class="pill pill-difficulty">Intermediate</span>
+      <span class="pill pill-duration">~5 min</span>
+      <span class="pill pill-v3">v3 expressive</span>
+    </div>
+    <div class="sub-meta">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-label">Ready</span>
+      <span class="meta-sep">·</span>
+      <span id="timer">00:00</span>
+    </div>
+  </div>
+
+  <!-- Main =============================================================== -->
+  <main class="main">
+
+    <!-- LEFT: scenario brief ------------------------------------------- -->
+    <aside class="brief entrance">
+      <div class="persona">
+        <div class="persona-avatar" aria-hidden="true"></div>
+        <div class="persona-text">
+          <div class="persona-name">Sarah Chen</div>
+          <div class="persona-meta">34 · Marketing manager · Toronto</div>
+          <div class="persona-quote">"I'm not getting my money back and I don't understand why."</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="eyebrow">Reservation context</div>
+          <h3>HMXYZ8423</h3>
+        </div>
+        <div class="card-body" style="padding-top: 0;">
+          <dl class="brief-facts">
+            <div class="brief-fact"><dt>Listing</dt><dd>Waterfront Villa</dd></div>
+            <div class="brief-fact"><dt>Nights</dt><dd>4</dd></div>
+            <div class="brief-fact"><dt>Total paid</dt><dd>$2,145</dd></div>
+            <div class="brief-fact highlight"><dt>Cancelled</dt><dd>5 days out</dd></div>
+            <div class="brief-fact"><dt>Policy</dt><dd>Firm</dd></div>
+            <div class="brief-fact"><dt>AirCover</dt><dd>Not purchased</dd></div>
+          </dl>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="eyebrow">Objectives</div>
+          <h3>Five moves to land</h3>
+          <div class="obj-progress">
+            <div class="obj-progress-fill" id="obj-progress-fill"></div>
+          </div>
+        </div>
+        <div class="card-body brief-objectives">
+          <div class="obj" data-obj="lookup"><span class="obj-num">1</span><span class="obj-text">Pull up the reservation before quoting policy</span></div>
+          <div class="obj" data-obj="empathy"><span class="obj-num">2</span><span class="obj-text">Acknowledge the anniversary and illness first</span></div>
+          <div class="obj" data-obj="policy"><span class="obj-num">3</span><span class="obj-text">Explain Firm policy and 0% bracket clearly</span></div>
+          <div class="obj" data-obj="aircover"><span class="obj-num">4</span><span class="obj-text">Offer AirCover extenuating-circumstances review</span></div>
+          <div class="obj" data-obj="escalation"><span class="obj-num">5</span><span class="obj-text">Escalate within 15s if chargeback is mentioned</span></div>
+        </div>
+      </div>
+
+      <div class="card hint-card">
+        <div class="hint-row"><kbd>coach me</kbd><span>pause for a tip</span></div>
+        <div class="hint-row"><kbd>M</kbd><span>mute your mic</span></div>
+        <div class="hint-row"><kbd>F</kbd><span>fallback video</span></div>
+      </div>
+    </aside>
+
+    <!-- CENTER: stage -------------------------------------------------- -->
+    <section class="stage entrance">
+      <div class="orb-frame">
+        <div class="orb idle" id="orb" aria-hidden="true">
+          <div class="orb-ring"></div>
+          <div class="orb-core"></div>
+        </div>
+        <div class="orb-wave" id="orb-wave" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div class="orb-label" id="orb-label">Tap begin to start the scenario</div>
+        <div class="orb-sub" id="orb-sub">Sarah will open with a complaint about her cancelled booking. Your job: pull up the reservation, acknowledge the context, apply the Firm policy, and offer the AirCover path.</div>
+        <div class="orb-actions">
+          <button class="btn btn-primary btn-lg" id="btn-start" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+            Begin scenario
+          </button>
+          <button class="btn btn-ghost hide" id="btn-end" type="button">End call</button>
+          <button class="btn-icon" id="btn-mic" type="button" aria-label="Toggle microphone" title="Toggle mic (M)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="transcript" id="transcript">
+        <div class="transcript-head">
+          <h3>Live transcript</h3>
+          <span class="eyebrow" id="transcript-meta">0 turns</span>
+        </div>
+        <div class="transcript-body" id="transcript-body"></div>
+      </div>
+    </section>
+
+    <!-- RIGHT: behind the scenes --------------------------------------- -->
+    <aside class="system entrance" id="system">
+      <div class="system-head">
+        <div class="system-eyebrow">Behind the scenes</div>
+        <h3>Workflow · Scoring · Coaching</h3>
+        <div class="tabs" role="tablist" aria-label="Behind the scenes">
+          <button class="tab active" data-tab="workflow" role="tab">Workflow</button>
+          <button class="tab" data-tab="prompt" role="tab">Prompt</button>
+          <button class="tab" data-tab="kb" role="tab">KB</button>
+          <button class="tab" data-tab="eval" role="tab">Scoring</button>
+          <button class="tab" data-tab="coaching" role="tab">Coaching <span class="tab-count hide" id="coaching-count">0</span></button>
+          <button class="tab" data-tab="dashboard" role="tab">Cohort</button>
+        </div>
+      </div>
+
+      <!-- Workflow panel -->
+      <div class="panel active" id="panel-workflow" role="tabpanel">
+        <div class="flow" id="flow">
+          <div class="node" data-node="start"><div class="node-dot">1</div><div><div class="node-title">Start</div><div class="node-sub">Persona loaded, KB attached, lookup_reservation armed</div></div></div>
+          <div class="node-edge"></div>
+          <div class="node" data-node="customer"><div class="node-dot">2</div><div><div class="node-title">Customer — Sarah</div><div class="node-sub">In-character. Mid-call coaching embedded. Hard rule: supervisor on chargeback mention.</div></div></div>
+          <div class="node-edge"></div>
+          <div class="node" data-node="debrief"><div class="node-dot">3</div><div><div class="node-title">Debrief</div><div class="node-sub">Coach voice override. Score 5 dimensions. One takeaway.</div></div></div>
+          <div class="node-edge"></div>
+          <div class="node" data-node="end"><div class="node-dot">4</div><div><div class="node-title">End</div><div class="node-sub">Webhook posts transcript + tool calls + eval → Supabase. Realtime → this panel.</div></div></div>
+        </div>
+        <div class="flow-legend">
+          <span class="dot dot-active"></span>active
+          <span class="dot dot-done"></span>complete
+          <span class="dot dot-pending"></span>pending
+        </div>
+      </div>
+
+      <!-- Prompt panel -->
+      <div class="panel" id="panel-prompt" role="tabpanel">
+        <div class="prompt-toc">
+          <span class="toc-tag">Personality</span>
+          <span class="toc-tag">Environment</span>
+          <span class="toc-tag">Tone</span>
+          <span class="toc-tag">Goal</span>
+          <span class="toc-tag toc-emphasis">Guardrails</span>
+          <span class="toc-tag">Tools</span>
+        </div>
+        <div class="mono-block"><span class="kw"># Personality</span>
+You are Sarah Chen, a 34-year-old marketing manager from
+Toronto. You are articulate, professional, and emotionally
+expressive. You are the CALLER, not the agent.
+
+<span class="kw"># Environment</span>
+A phone call to Airbnb support on 2026-05-04, one day
+after cancelling reservation <span class="hl">HMXYZ8423</span>.
+
+<span class="kw"># Tone</span>
+Baseline: polite but firm. Shifts with trainee behaviour:
+  dismissive → [frustrated]
+  acknowledging → [softer]
+  solving → [relieved]
+
+<span class="kw"># Goal</span>
+Recover $2,145 OR get a concrete path forward.
+Mid-call coaching trigger phrases:
+  "coach me" · "pause please" · "hint please" · "how am I doing"
+
+<span class="kw"># Guardrails</span>
+Stay in character except during coaching.
+Never approve a refund on the trainee's behalf.
+Never call lookup_reservation yourself — it's the trainee's.
+
+<span class="kw"># Tools</span>
+end_call · skip_turn · (lookup_reservation is for trainee)</div>
+      </div>
+
+      <!-- KB panel -->
+      <div class="panel" id="panel-kb" role="tabpanel">
+        <div class="kb-header">
+          <span class="eyebrow">5 documents attached · RAG enabled · e5_mistral_7b_instruct</span>
+        </div>
+        <div class="kb-item">
+          <div class="kb-item-head"><span class="kb-item-title">Firm refund matrix</span><span class="kb-item-score">0.94</span></div>
+          <div class="kb-item-excerpt">30+ days: 100%. 7–29 days: 50%. Less than 7 days: 0%. Service fee refundable once per year if cancelled within 48h of booking.</div>
+        </div>
+        <div class="kb-item">
+          <div class="kb-item-head"><span class="kb-item-title">AirCover extenuating circumstances</span><span class="kb-item-score">0.87</span></div>
+          <div class="kb-item-excerpt">Sudden grave illness documented by a medical professional qualifies. Reviewer contact within 3 business days. Agents initiate — they don't approve.</div>
+        </div>
+        <div class="kb-item">
+          <div class="kb-item-head"><span class="kb-item-title">Escalation triggers</span><span class="kb-item-score">0.81</span></div>
+          <div class="kb-item-excerpt">Guest mentions chargeback, legal action, T&S concern, or requests supervisor → transfer immediately. 15-second window.</div>
+        </div>
+        <div class="kb-item">
+          <div class="kb-item-head"><span class="kb-item-title">Empathy microscripts</span><span class="kb-item-score">0.74</span></div>
+          <div class="kb-item-excerpt">"Let me pull up your reservation." "That's an incredibly stressful week, I'm sorry." "Because you have documentation, we can open an AirCover review."</div>
+        </div>
+        <div class="kb-item">
+          <div class="kb-item-head"><span class="kb-item-title">Reservation facts — HMXYZ8423</span><span class="kb-item-score">0.92</span></div>
+          <div class="kb-item-excerpt">Waterfront Villa, Prince Edward County. 4 nights, $2,145 total. Cancelled 2026-05-03, 5 days before check-in. Partner's flu, doctor's note.</div>
+        </div>
+      </div>
+
+      <!-- Scoring panel -->
+      <div class="panel" id="panel-eval" role="tabpanel">
+        <div class="crit" data-crit="policy">
+          <div class="crit-head"><span class="crit-name">Policy adherence</span><span class="crit-value" id="crit-policy-value">—</span></div>
+          <div class="crit-bar"><div class="crit-fill" id="crit-policy-fill"></div></div>
+          <div class="crit-rationale" id="crit-policy-rationale">Scored live as trainee cites Firm + AirCover path.</div>
+        </div>
+        <div class="crit" data-crit="empathy">
+          <div class="crit-head"><span class="crit-name">Empathy indicators</span><span class="crit-value" id="crit-empathy-value">—</span></div>
+          <div class="crit-bar"><div class="crit-fill" id="crit-empathy-fill"></div></div>
+          <div class="crit-rationale" id="crit-empathy-rationale">Flagged moments of acknowledgement or missed context.</div>
+        </div>
+        <div class="crit" data-crit="tool">
+          <div class="crit-head"><span class="crit-name">Tool usage</span><span class="crit-value" id="crit-tool-value">—</span></div>
+          <div class="crit-bar"><div class="crit-fill" id="crit-tool-fill"></div></div>
+          <div class="crit-rationale" id="crit-tool-rationale">Did lookup_reservation fire before policy was quoted?</div>
+        </div>
+        <div class="crit" data-crit="escalation">
+          <div class="crit-head"><span class="crit-name">Escalation timing</span><span class="crit-value" id="crit-escalation-value">—</span></div>
+          <div class="crit-bar"><div class="crit-fill" id="crit-escalation-fill"></div></div>
+          <div class="crit-rationale" id="crit-escalation-rationale">Supervisor offered within 15s of chargeback mention?</div>
+        </div>
+        <div class="eval-meta">
+          <span class="eyebrow">Criteria defined by L&D · configurable per cohort</span>
+        </div>
+      </div>
+
+      <!-- Coaching panel -->
+      <div class="panel" id="panel-coaching" role="tabpanel">
+        <div id="coaching-list">
+          <div class="flag info placeholder">
+            <div class="flag-icon">i</div>
+            <div><div class="flag-title">Coaching populates during and after the call</div><div class="flag-note">Each flag cites the exact phrasing Sarah responded to.</div></div>
+            <div class="flag-time">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cohort panel -->
+      <div class="panel" id="panel-dashboard" role="tabpanel">
+        <div class="cohort-summary">
+          <div class="cohort-stat"><div class="cohort-val">7.0</div><div class="cohort-lbl">Avg policy</div></div>
+          <div class="cohort-stat"><div class="cohort-val">4/5</div><div class="cohort-lbl">Tool fired</div></div>
+          <div class="cohort-stat"><div class="cohort-val">60%</div><div class="cohort-lbl">AirCover path</div></div>
+          <div class="cohort-sparkline">
+            <svg viewBox="0 0 120 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <polyline points="0,22 20,20 40,18 60,14 80,12 100,10 120,8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              <circle cx="120" cy="8" r="3" fill="currentColor" />
+            </svg>
+            <div class="spark-lbl">7-day trend</div>
+          </div>
+        </div>
+        <table class="dash-table" id="dash-table">
+          <thead>
+            <tr><th>Trainee</th><th>Site</th><th>Policy</th><th>Flags</th><th>Tool</th><th>Run</th></tr>
+          </thead>
+          <tbody id="dash-body">
+            <tr><td colspan="6" style="padding: 24px; text-align: center; color: var(--text-subtle);">Loading cohort runs…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Post-call score bar =============================================== -->
+  <footer class="scorebar" id="scorebar" role="status" aria-live="polite">
+    <div class="sb-inner">
+      <div class="sb-item"><span class="sb-label">Policy</span><span class="sb-value" id="sb-policy">—</span></div>
+      <div class="sb-item"><span class="sb-label">Empathy</span><span class="sb-value" id="sb-empathy">—</span></div>
+      <div class="sb-item"><span class="sb-label">Tool</span><span class="sb-value" id="sb-tool">—</span></div>
+      <div class="sb-item"><span class="sb-label">Escalation</span><span class="sb-value" id="sb-escalation">—</span></div>
+      <div class="sb-actions">
+        <button class="btn btn-ghost" id="btn-again" type="button" style="display: none;">Practice again</button>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<!-- Fallback video overlay -->
+<div class="fallback" id="fallback" aria-modal="true" role="dialog">
+  <button class="fallback-close" id="fallback-close" type="button">Close (Esc)</button>
+  <video id="fallback-video" src="assets/fallback-demo.mp4" controls preload="metadata"></video>
+</div>
+
+<script src="env.js" onerror="console.info('env.js not found — running in DEMO_MODE')"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

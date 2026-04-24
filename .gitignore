@@ -1,0 +1,10 @@
+.env
+.env.local
+# NOTE: env.js is NOT gitignored — Supabase anon key + ElevenLabs agent id are
+# designed for client-side exposure (RLS + agent-id-only are public-safe).
+# The service-role key stays inside the Supabase edge function, never the browser.
+.DS_Store
+node_modules/
+*.log
+# fallback-demo.mp4 is a local recording; commit it if you want it on GH Pages
+# (it's a nice-to-have, not sensitive)
