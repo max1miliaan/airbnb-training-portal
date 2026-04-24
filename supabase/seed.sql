@@ -68,7 +68,7 @@ insert into evaluations
   (id, scenario_id, trainee_name, started_at, ended_at, policy_score, tool_calls, empathy_flags, escalation_flag)
 values
   (gen_random_uuid(), '33333333-3333-3333-3333-333333333333',
-   'Priya K. (Cork, TELUS)',    now() - interval '3 hours', now() - interval '3 hours' + interval '6 minutes',
+   'Maya R. (Atlanta, in-house)', now() - interval '3 hours', now() - interval '3 hours' + interval '6 minutes',
    8,
    jsonb_build_array(jsonb_build_object('tool','lookup_reservation','at_seconds',12,'ok',true)),
    jsonb_build_array(jsonb_build_object('flag','strong_acknowledgement','at_seconds',4)),
@@ -80,7 +80,7 @@ values
    jsonb_build_array(jsonb_build_object('flag','tone_shift_too_fast','at_seconds',90)),
    false),
   (gen_random_uuid(), '33333333-3333-3333-3333-333333333333',
-   'Elena R. (Romania, TELUS)', now() - interval '1 day 2 hours', now() - interval '1 day 2 hours' + interval '7 minutes',
+   'Elena V. (Portland, in-house)', now() - interval '1 day 2 hours', now() - interval '1 day 2 hours' + interval '7 minutes',
    9,
    jsonb_build_array(jsonb_build_object('tool','lookup_reservation','at_seconds',9,'ok',true)),
    jsonb_build_array(
@@ -94,7 +94,7 @@ values
    jsonb_build_array(jsonb_build_object('flag','missed_emotional_context','at_seconds',3)),
    false),
   (gen_random_uuid(), '33333333-3333-3333-3333-333333333333',
-   'Ade O. (Lagos, Directly)', now() - interval '3 days', now() - interval '3 days' + interval '5 minutes',
+   'Ade O. (San Francisco, in-house)', now() - interval '3 days', now() - interval '3 days' + interval '5 minutes',
    7,
    jsonb_build_array(jsonb_build_object('tool','lookup_reservation','at_seconds',20,'ok',true)),
    jsonb_build_array(jsonb_build_object('flag','policy_cited_correctly','at_seconds',110)),

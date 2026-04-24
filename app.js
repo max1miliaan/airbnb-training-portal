@@ -496,11 +496,11 @@ function dashRow(r) {
 // ---- Demo script (no-env fallback) --------------------------------------
 
 const DEMO_RUNS = [
-  { trainee: 'Priya K.', site: 'Cork-TELUS', policy: 8, flags: 1, tool: true, when: '3h ago' },
+  { trainee: 'Maya R.', site: 'Atlanta', policy: 8, flags: 1, tool: true, when: '3h ago' },
   { trainee: 'Marcus D.', site: 'Atlanta', policy: 6, flags: 1, tool: true, when: '1d ago' },
-  { trainee: 'Elena R.', site: 'Romania-TELUS', policy: 9, flags: 2, tool: true, when: '1d ago' },
+  { trainee: 'Elena V.', site: 'Portland', policy: 9, flags: 2, tool: true, when: '1d ago' },
   { trainee: 'Jordan B.', site: 'Portland', policy: 5, flags: 1, tool: false, when: '2d ago' },
-  { trainee: 'Ade O.', site: 'Lagos-Directly', policy: 7, flags: 1, tool: true, when: '3d ago' },
+  { trainee: 'Ade O.', site: 'San Francisco', policy: 7, flags: 1, tool: true, when: '3d ago' },
 ];
 
 async function runDemoScript() {
