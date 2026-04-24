@@ -86,6 +86,22 @@ function setStatus(next) {
   else if (next === 'connecting') statusDot.classList.add('connecting');
 }
 
+// Map workflow node → role label + orb theme class.
+function roleForNode(nodeId) {
+  // Dispatch tool has no pretty label — it's a hidden silent node.
+  if (nodeId === 'mid_coaching')   return { name: 'Mid-call coach',   theme: 'coach-mid' };
+  if (nodeId === 'debrief')        return { name: 'Debrief coach',    theme: 'coach-debrief' };
+  // scorecard_dispatch + any tool-type node → keep current theme (transient).
+  if (nodeId && nodeId.startsWith('node_')) return { name: 'Scoring', theme: 'dispatch' };
+  return { name: 'Sarah', theme: 'sarah' };
+}
+
+function applyNodeTheme(nodeId) {
+  const role = roleForNode(nodeId);
+  orb.classList.remove('theme-sarah', 'theme-coach-mid', 'theme-coach-debrief', 'theme-dispatch');
+  orb.classList.add(`theme-${role.theme}`);
+}
+
 function setOrb(kind, label, sub) {
   orb.classList.remove('speaking', 'idle', 'listening', 'thinking');
   if (kind) orb.classList.add(kind);
@@ -252,10 +268,16 @@ async function startCall() {
         if (state.status !== 'ended') endCall();
       },
       onMessage: (evt) => {
-        // SDK 0.8.1 primary shape: { source: 'user' | 'ai', message: string }
-        // Also handle: { role, text }, { type, ... } tool-call variants.
+        // SDK 0.8.1 primary shape: { source: 'user' | 'ai', message: string, agent_metadata: {...} }
         log('message', evt);
         handleToolEvent(evt);
+        // Track active workflow node so the orb can relabel for coach nodes.
+        const nodeId = evt.agent_metadata?.workflow_node_id ?? evt.agentMetadata?.workflow_node_id;
+        if (nodeId && nodeId !== state.activeWorkflowNode) {
+          state.activeWorkflowNode = nodeId;
+          log('workflow node', nodeId);
+          applyNodeTheme(nodeId);
+        }
         const src = evt.source ?? evt.role ?? (evt.type?.includes('user') ? 'user' : 'ai');
         const text = evt.message ?? evt.text ?? evt.content ?? '';
         if (!text || !String(text).trim()) return;
@@ -268,10 +290,10 @@ async function startCall() {
       },
       onModeChange: ({ mode }) => {
         log('mode', mode);
-        if (mode === 'speaking') setOrb('speaking', 'Sarah is speaking');
-        else if (mode === 'listening') setOrb('listening', 'Sarah is listening', 'Your turn');
-        else if (mode === 'thinking') setOrb('thinking', 'Sarah is thinking');
-        // Clear user-speaking class when Sarah takes over.
+        const role = roleForNode(state.activeWorkflowNode);
+        if (mode === 'speaking') setOrb('speaking', `${role.name} is speaking`);
+        else if (mode === 'listening') setOrb('listening', `${role.name} is listening`, 'Your turn');
+        else if (mode === 'thinking') setOrb('thinking', `${role.name} is thinking`);
         if (mode === 'speaking' || mode === 'thinking') {
           orb.classList.remove('user-speaking');
           orb.style.setProperty('--vol', '0');
@@ -461,6 +483,8 @@ function resetCall() {
   stopTimer();
   state.startedAt = null;
   state.turnCount = 0;
+  state.activeWorkflowNode = null;
+  applyNodeTheme(null);
   state.objectives = new Set();
   liveScores.policy = 0; liveScores.empathyCount = 0; liveScores.toolUsed = false; liveScores.escalationFired = false;
   liveFlags.clear();
