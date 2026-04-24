@@ -456,7 +456,7 @@ function onLookupResponded(result) {
 function liveFlag(id, severity, type, note) {
   if (liveFlags.has(id)) return;
   liveFlags.add(id);
-  appendCoaching({ flag_type: type, timestamp_in_call: elapsed(), note, severity });
+  appendCoaching({ flag_type: type, timestamp_in_call: elapsed(), note, severity, source: 'live' });
 }
 
 function inferObjectives(trainee) {
@@ -500,7 +500,7 @@ if (supa) {
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'coaching_notes' }, (payload) => {
       log('realtime coaching note', payload.new);
-      appendCoaching(payload.new);
+      appendCoaching({ ...payload.new, source: 'evaluator' });
     })
     .subscribe((s) => log('supabase realtime', s));
 }
@@ -547,13 +547,20 @@ function computeOverallFromCriteria(criteria) {
 function appendCoaching(note) {
   const placeholder = coachingList.querySelector('.flag.placeholder');
   if (placeholder) placeholder.remove();
+  const source = note.source || 'live';
   const el = document.createElement('div');
-  el.className = `flag ${note.severity || 'info'}`;
+  el.className = `flag ${note.severity || 'info'} flag-${source}`;
   const icon = { info: 'i', warn: '!', miss: 'x' }[note.severity || 'info'];
+  const badge = source === 'evaluator'
+    ? '<span class="flag-source src-evaluator">Evaluator</span>'
+    : '<span class="flag-source src-live">Live check</span>';
   el.innerHTML = `
     <div class="flag-icon">${icon}</div>
-    <div>
-      <div class="flag-title">${escapeHtml(formatFlagLabel(note.flag_type))}</div>
+    <div class="flag-body">
+      <div class="flag-title-row">
+        <div class="flag-title">${escapeHtml(formatFlagLabel(note.flag_type))}</div>
+        ${badge}
+      </div>
       <div class="flag-note">${escapeHtml(note.note || '')}</div>
     </div>
     <div class="flag-time">${formatTime(note.timestamp_in_call)}</div>
@@ -679,7 +686,7 @@ function applyDemoEvaluation() {
     { severity: 'info',  flag_type: 'aircover_path_offered',          timestamp_in_call: 95,  note: 'Offered AirCover review specifically because documentation exists — not a generic fallback.' },
     { severity: 'warn',  flag_type: 'specifics_could_be_tighter',     timestamp_in_call: 128, note: 'Walked through the timeline well, but did not explicitly name the medical-documentation qualifier. Small, but matters for compliance auditing.' },
   ];
-  notes.forEach((n, i) => setTimeout(() => appendCoaching(n), 180 * (i + 1)));
+  notes.forEach((n, i) => setTimeout(() => appendCoaching({ ...n, source: 'evaluator' }), 180 * (i + 1)));
 }
 
 // ---- Boot ---------------------------------------------------------------

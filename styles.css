@@ -660,6 +660,35 @@ kbd {
 }
 .sb-result.live { color: var(--text-body); font-weight: 600; }
 
+/* --- Feedback source badges ------------------------------------------ */
+.flag-body { min-width: 0; flex: 1; }
+.flag-title-row {
+  display: flex; align-items: center; gap: var(--s-2);
+  flex-wrap: wrap;
+}
+.flag-source {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+.src-live {
+  background: #F1EDE7;
+  color: #6B6863;
+  border: 1px solid var(--border);
+}
+.src-evaluator {
+  background: #FFE5EC;
+  color: #B8114A;
+  border: 1px solid #F5C8D6;
+}
+.flag.flag-evaluator { border-left: 3px solid var(--ab-rausch); }
+.flag.flag-live      { border-left: 3px solid transparent; }
+
 /* Center stage -------------------------------------------------------- */
 .stage { display: flex; flex-direction: column; gap: var(--s-5); min-width: 0; }
 
