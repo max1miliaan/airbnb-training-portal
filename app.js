@@ -104,8 +104,8 @@ function listeningHintFor(role) {
 // Heuristic fallback for when the SDK doesn't deliver workflow_node_id with
 // the agent message. Coach + debrief have very distinctive opening phrasing
 // that we can detect from the first 200 chars.
-const COACH_OPENERS_RE = /\b(?:i need to pause here|let'?s pause|quick tip|jumping back now|here'?s a tip|pause for a moment|i'?m the coach|coach speaking|coaching tip)\b/i;
-const DEBRIEF_OPENERS_RE = /\b(?:here'?s? (?:your|the) debrief|let'?s? break (?:this|that) down|overall you scored|let'?s? go through (?:your|the) call|the scorecard|reviewing your call|debrief time|that wraps the call)\b/i;
+const COACH_OPENERS_RE = /\b(?:i need to pause here|let'?s pause|quick tip|jumping back now|here'?s a tip|pause for a moment|i'?m the coach|coach speaking|coaching tip|you'?ve done (?:the )?heavy lifting|here'?s the phrase|here'?s what to say|try saying)\b/i;
+const DEBRIEF_OPENERS_RE = /\b(?:here'?s? (?:your|the) debrief|let'?s? break (?:this|that) down|overall you scored|let'?s? go through (?:your|the) call|(?:the |your )?scorecard|reviewing your call|debrief time|that wraps the call|let me walk you through|empathy and acknowledgement[: ]|policy accuracy[: ])\b/i;
 function maybeRetitleFromAgentText(text) {
   const head = text.slice(0, 240);
   let inferred = null;
@@ -547,6 +547,8 @@ function resetCall() {
   state.objectives = new Set();
   liveScores.policy = 0; liveScores.empathyCount = 0; liveScores.toolUsed = false; liveScores.escalationFired = false;
   liveFlags.clear();
+  _firedEdgeDispatch.clear();
+  _seenToolCalls.clear();
   transcriptBody.innerHTML = '';
   transcriptMeta.textContent = '0 turns';
   timer.textContent = '00:00';
@@ -574,6 +576,27 @@ function resetCall() {
 
 const _seenToolCalls = new Set();
 
+// Names of internal workflow-edge dispatch tools the platform auto-creates.
+// They fire when the LLM judges that an edge condition is met. We use them
+// as the most reliable signal that a node transition just happened, but we
+// hide them from the audience-facing transcript (they're plumbing, not
+// content) and we suppress duplicates aggressively because the LLM
+// occasionally retries them in a loop.
+const EDGE_DISPATCH_TOOLS = new Set([
+  'notify_condition_1_met', 'notify_condition_2_met',
+  'notify_condition_3_met', 'notify_condition_4_met',
+]);
+
+// Map each edge dispatch tool to the destination node it implies. These
+// numbers match edge declaration order in workflow.edges (1=customer_coaching
+// -> mid_coaching, 2=customer_to_debrief -> dispatch -> debrief).
+const EDGE_DISPATCH_TARGETS = {
+  notify_condition_1_met: 'mid_coaching',
+  notify_condition_2_met: 'debrief',
+};
+
+const _firedEdgeDispatch = new Set();
+
 function handleToolEvent(evt) {
   if (!evt || typeof evt !== 'object') return;
   const kind = evt.type ?? evt.event ?? null;
@@ -587,20 +610,89 @@ function handleToolEvent(evt) {
     if (_seenToolCalls.has(callId)) return;
     _seenToolCalls.add(callId);
     const params = call.parameters ?? call.arguments ?? {};
+
+    // --- Edge dispatch (workflow transition) ---------------------------
+    if (EDGE_DISPATCH_TOOLS.has(toolName)) {
+      // Skip transcript line — internal plumbing, not content.
+      // Only fire-once per dispatch target to absorb the LLM's tendency
+      // to retry these calls 10+ times in a tight loop.
+      const targetNode = EDGE_DISPATCH_TARGETS[toolName];
+      if (targetNode && !_firedEdgeDispatch.has(toolName)) {
+        _firedEdgeDispatch.add(toolName);
+        log('edge dispatch -> pre-flipping node theme', toolName, '->', targetNode);
+        state.activeWorkflowNode = targetNode;
+        applyNodeTheme(targetNode);
+        // If the dispatch carries a nested submit_scorecard payload (debrief
+        // edge does this), surface the scorecard immediately so the audience
+        // sees the donut populate while the debrief coach is talking — not
+        // after End Call lands the Supabase row.
+        maybeIngestNestedScorecard(params);
+      }
+      return;
+    }
+
     const paramStr = Object.entries(params).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(' ');
     addLine('tool', `${toolName}(${paramStr})`, { time: elapsed() });
     if (toolName === 'lookup_reservation') {
       onLookupCalled(params);
+    }
+    if (toolName === 'submit_scorecard') {
+      onScorecardSubmitted(params);
     }
   }
 
   if (isToolResp) {
     const resp = evt.tool_response ?? evt;
     const toolName = resp.tool_name ?? resp.name ?? 'tool';
+    // Suppress edge-dispatch tool responses from transcript / handlers.
+    if (EDGE_DISPATCH_TOOLS.has(toolName)) return;
     if (toolName === 'lookup_reservation') {
       onLookupResponded(resp.result ?? resp.response_data ?? null);
     }
   }
+}
+
+// notify_condition_2_met sometimes ships submit_scorecard as a nested-tools
+// JSON string (CLI/runtime quirk). Try to extract it.
+function maybeIngestNestedScorecard(params) {
+  try {
+    const nested = params?.nested_tools ?? params?.nestedTools;
+    if (!nested) return;
+    const obj = typeof nested === 'string' ? JSON.parse(nested) : nested;
+    const sc = obj?.submit_scorecard ?? obj?.submitScorecard;
+    if (sc) onScorecardSubmitted(sc);
+  } catch (e) {
+    log('nested scorecard parse failed', e?.message);
+  }
+}
+
+// Fired when the agent calls submit_scorecard (directly or nested in an
+// edge dispatch). Switches the right rail to the Scorecard tab and previews
+// the donut + criteria immediately, ahead of the post-call Supabase fetch.
+function onScorecardSubmitted(params) {
+  log('scorecard submitted (live)', params);
+  // Normalise camelCase / snake_case from the LLM.
+  const get = (k1, k2) => params?.[k1] ?? params?.[k2];
+  const overall = Number(get('overall_score', 'overallScore')) || 0;
+  const liveCriteria = {
+    empathy_and_acknowledgement: { pass: !!get('empathy_pass',     'empathyPass') },
+    policy_accuracy:             { pass: !!get('policy_pass',      'policyPass') },
+    aircover_path_offered:       { pass: !!get('aircover_pass',    'aircoverPass') },
+    escalation_handling:         { pass: !!get('escalation_pass',  'escalationPass') },
+    tone_and_professionalism:    { pass: !!get('tone_pass',        'tonePass') },
+  };
+  // Switch tab.
+  const scorecardTab = document.querySelector('.tab[data-tab="eval"]');
+  if (scorecardTab && !scorecardTab.classList.contains('active')) scorecardTab.click();
+  // Paint criteria + donut. Rationales arrive later from the Supabase eval
+  // row; we show pass/fail now so the audience sees movement.
+  if (typeof CRITERIA !== 'undefined' && Array.isArray(CRITERIA)) {
+    CRITERIA.forEach((c) => {
+      const r = liveCriteria[c.id];
+      if (r) setCriterionState(c.id, r.pass ? 'pass' : 'fail', null);
+    });
+  }
+  if (typeof setDonut === 'function') setDonut(overall, 5);
 }
 
 function onLookupCalled(params) {
