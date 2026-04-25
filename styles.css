@@ -148,9 +148,9 @@ kbd {
   font-size: var(--fs-sm);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-subtle);
+  color: var(--text);
   padding-left: var(--s-3);
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--border-strong);
 }
 .top-nav {
   display: flex;
