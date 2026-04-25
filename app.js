@@ -102,15 +102,22 @@ function listeningHintFor(role) {
 }
 
 // Heuristic fallback for when the SDK doesn't deliver workflow_node_id with
-// the agent message. Coach + debrief have very distinctive opening phrasing
-// that we can detect from the first 200 chars.
-const COACH_OPENERS_RE = /\b(?:i need to pause here|let'?s pause|quick tip|jumping back now|here'?s a tip|pause for a moment|i'?m the coach|coach speaking|coaching tip|you'?ve done (?:the )?heavy lifting|here'?s the phrase|here'?s what to say|try saying)\b/i;
+// the agent message. Coach, debrief, and Sarah each have distinctive opening
+// phrasing we can detect from the first ~240 chars.
+//
+// Note: "Jumping back now." is the coach's EXIT phrase, not an opener. It is
+// deliberately absent here — finding it should NOT keep us in coach.
+const COACH_OPENERS_RE = /\b(?:i need to pause here|let'?s pause|quick tip|here'?s a tip|pause for a moment|i'?m the coach|coach speaking|coaching tip|you'?ve done (?:the )?heavy lifting|here'?s the phrase|here'?s what to say|try saying)\b/i;
 const DEBRIEF_OPENERS_RE = /\b(?:here'?s? (?:your|the) debrief|let'?s? break (?:this|that) down|overall you scored|let'?s? go through (?:your|the) call|(?:the |your )?scorecard|reviewing your call|debrief time|that wraps the call|let me walk you through|empathy and acknowledgement[: ]|policy accuracy[: ])\b/i;
+// Sarah's voice is unmistakable from her v3 expressive tags — they only ship
+// on customer_call turns (per agent prompt). Match the first tag bracket.
+const SARAH_OPENERS_RE = /\[(?:frustrated|sigh|firm|softer|relieved|disappointed|resigned|anxious)\]/i;
 function maybeRetitleFromAgentText(text) {
   const head = text.slice(0, 240);
   let inferred = null;
   if (state.activeWorkflowNode !== 'mid_coaching' && COACH_OPENERS_RE.test(head)) inferred = 'mid_coaching';
   else if (state.activeWorkflowNode !== 'debrief' && DEBRIEF_OPENERS_RE.test(head)) inferred = 'debrief';
+  else if (state.activeWorkflowNode !== 'customer_call' && SARAH_OPENERS_RE.test(head)) inferred = 'customer_call';
   if (inferred) {
     log('inferred workflow node from text', inferred);
     state.activeWorkflowNode = inferred;
@@ -587,15 +594,21 @@ const EDGE_DISPATCH_TOOLS = new Set([
   'notify_condition_3_met', 'notify_condition_4_met',
 ]);
 
-// Map each edge dispatch tool to the destination node it implies. These
-// numbers match edge declaration order in workflow.edges (1=customer_coaching
-// -> mid_coaching, 2=customer_to_debrief -> dispatch -> debrief).
-const EDGE_DISPATCH_TARGETS = {
-  notify_condition_1_met: 'mid_coaching',
-  notify_condition_2_met: 'debrief',
-};
-
-const _firedEdgeDispatch = new Set();
+// Direction-aware target inference. notify_condition_1_met fires on the
+// customer_coaching edge in BOTH directions (the platform requires one edge
+// per node pair), so we toggle off the current node instead of using a
+// static map. notify_condition_2/3_met fire forward only.
+function inferEdgeTarget(toolName) {
+  const cur = state.activeWorkflowNode;
+  if (toolName === 'notify_condition_1_met') {
+    return cur === 'mid_coaching' ? 'customer_call' : 'mid_coaching';
+  }
+  if (toolName === 'notify_condition_2_met' || toolName === 'notify_condition_3_met' || toolName === 'notify_condition_4_met') {
+    if (cur === 'debrief') return 'end';
+    return 'debrief';
+  }
+  return null;
+}
 
 function handleToolEvent(evt) {
   if (!evt || typeof evt !== 'object') return;
@@ -614,19 +627,18 @@ function handleToolEvent(evt) {
     // --- Edge dispatch (workflow transition) ---------------------------
     if (EDGE_DISPATCH_TOOLS.has(toolName)) {
       // Skip transcript line — internal plumbing, not content.
-      // Only fire-once per dispatch target to absorb the LLM's tendency
-      // to retry these calls 10+ times in a tight loop.
-      const targetNode = EDGE_DISPATCH_TARGETS[toolName];
-      if (targetNode && !_firedEdgeDispatch.has(toolName)) {
-        _firedEdgeDispatch.add(toolName);
-        log('edge dispatch -> pre-flipping node theme', toolName, '->', targetNode);
+      // Dedup ONLY when target == current node (LLM looping in place).
+      // Any dispatch that flips us OUT of the current node must go through,
+      // otherwise the orb gets stuck on coach/debrief after a back-transition.
+      const targetNode = inferEdgeTarget(toolName);
+      const cur = state.activeWorkflowNode;
+      if (targetNode && targetNode !== cur) {
+        log('edge dispatch -> flipping node theme', toolName, cur, '->', targetNode);
         state.activeWorkflowNode = targetNode;
         applyNodeTheme(targetNode);
-        // If the dispatch carries a nested submit_scorecard payload (debrief
-        // edge does this), surface the scorecard immediately so the audience
-        // sees the donut populate while the debrief coach is talking — not
-        // after End Call lands the Supabase row.
         maybeIngestNestedScorecard(params);
+      } else {
+        log('edge dispatch ignored (already in target)', toolName, 'cur=', cur, 'target=', targetNode);
       }
       return;
     }
