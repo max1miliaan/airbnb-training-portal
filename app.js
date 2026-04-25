@@ -88,12 +88,34 @@ function setStatus(next) {
 
 // Map workflow node → role label + orb theme class.
 function roleForNode(nodeId) {
-  // Dispatch tool has no pretty label — it's a hidden silent node.
-  if (nodeId === 'mid_coaching')   return { name: 'Mid-call coach',   theme: 'coach-mid' };
-  if (nodeId === 'debrief')        return { name: 'Debrief coach',    theme: 'coach-debrief' };
-  // scorecard_dispatch + any tool-type node → keep current theme (transient).
+  if (nodeId === 'mid_coaching')   return { name: 'Coach',          theme: 'coach-mid' };
+  if (nodeId === 'debrief')        return { name: 'Debrief coach',  theme: 'coach-debrief' };
+  // Dispatch (silent tool node) — keep transient theme, neutral label.
   if (nodeId && nodeId.startsWith('node_')) return { name: 'Scoring', theme: 'dispatch' };
   return { name: 'Sarah', theme: 'sarah' };
+}
+
+// "Your turn" only makes sense when Sarah is the speaker. For coach/debrief
+// the trainee is listening, not preparing to respond.
+function listeningHintFor(role) {
+  return role.theme === 'sarah' ? 'Your turn' : 'Listen for the tip';
+}
+
+// Heuristic fallback for when the SDK doesn't deliver workflow_node_id with
+// the agent message. Coach + debrief have very distinctive opening phrasing
+// that we can detect from the first 200 chars.
+const COACH_OPENERS_RE = /\b(?:i need to pause here|let'?s pause|quick tip|jumping back now|here'?s a tip|pause for a moment|i'?m the coach|coach speaking|coaching tip)\b/i;
+const DEBRIEF_OPENERS_RE = /\b(?:here'?s? (?:your|the) debrief|let'?s? break (?:this|that) down|overall you scored|let'?s? go through (?:your|the) call|the scorecard|reviewing your call|debrief time|that wraps the call)\b/i;
+function maybeRetitleFromAgentText(text) {
+  const head = text.slice(0, 240);
+  let inferred = null;
+  if (state.activeWorkflowNode !== 'mid_coaching' && COACH_OPENERS_RE.test(head)) inferred = 'mid_coaching';
+  else if (state.activeWorkflowNode !== 'debrief' && DEBRIEF_OPENERS_RE.test(head)) inferred = 'debrief';
+  if (inferred) {
+    log('inferred workflow node from text', inferred);
+    state.activeWorkflowNode = inferred;
+    applyNodeTheme(inferred);
+  }
 }
 
 function applyNodeTheme(nodeId) {
@@ -103,7 +125,7 @@ function applyNodeTheme(nodeId) {
   // Refresh label so the orb retitles on handover even if onModeChange fired first
   // with the previous node still cached in state.activeWorkflowNode.
   if (orb.classList.contains('speaking'))       setOrb('speaking',  `${role.name} is speaking`);
-  else if (orb.classList.contains('listening')) setOrb('listening', `${role.name} is listening`, 'Your turn');
+  else if (orb.classList.contains('listening')) setOrb('listening', `${role.name} is listening`, listeningHintFor(role));
   else if (orb.classList.contains('thinking'))  setOrb('thinking',  `${role.name} is thinking`);
 }
 
@@ -156,12 +178,32 @@ function formatTime(s) {
   return `${mm}:${ss}`;
 }
 
+// Strip ElevenLabs v3 emotion tags ([frustrated], [sigh], [softer], etc.) from
+// transcript text before rendering. Tags drive the TTS engine but are noise on
+// the demo screen. Keep stripping conservative: only match short single-word
+// bracket tags so we don't eat tool-call payloads or legitimate brackets.
+const EMOTION_TAG_RE = /\s*\[(?:frustrated|sigh|softer|anxious|resigned|relieved|disappointed|firm|sad|happy|neutral|angry|excited|whisper|shout|laugh|laughs|laughing|crying|cries|breath|breathes|breathing|pause|pauses)\]\s*/gi;
+function stripEmotionTags(text) {
+  if (!text) return text;
+  return String(text).replace(EMOTION_TAG_RE, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
 function addLine(role, text, opts = {}) {
   if (!text) return;
+  if (role === 'guest' || role === 'agent' || role === 'coach' || role === 'debrief') text = stripEmotionTags(text);
   const line = document.createElement('div');
-  line.className = 'line ' + (role === 'tool' ? 'tool' : '');
-  const roleLbl = { guest: 'Sarah', agent: 'You', tool: 'tool', system: 'system' }[role] ?? role;
-  const roleClass = { guest: 'guest', agent: 'agent', tool: 'tool', system: 'system' }[role] ?? '';
+  const isToolRow = role === 'tool';
+  line.className = 'line ' + (isToolRow ? 'tool' : '');
+  // 'guest' is the historical label for any agent-side voice. Re-map it to the
+  // active workflow role so the transcript shows "Coach" / "Debrief" instead
+  // of "Sarah" while a non-Sarah node is speaking.
+  let effectiveRole = role;
+  if (role === 'guest') {
+    if (state.activeWorkflowNode === 'mid_coaching') effectiveRole = 'coach';
+    else if (state.activeWorkflowNode === 'debrief') effectiveRole = 'debrief';
+  }
+  const roleLbl = { guest: 'Sarah', agent: 'You', coach: 'Coach', debrief: 'Debrief', tool: 'tool', system: 'system' }[effectiveRole] ?? effectiveRole;
+  const roleClass = { guest: 'guest', agent: 'agent', coach: 'coach', debrief: 'debrief', tool: 'tool', system: 'system' }[effectiveRole] ?? '';
   const ts = opts.time ?? elapsed();
   line.innerHTML = `
     <span class="line-role ${roleClass}">${roleLbl}</span>
@@ -279,10 +321,15 @@ async function startCall() {
         log('message', evt);
         handleToolEvent(evt);
         // Track active workflow node so the orb can relabel for coach nodes.
+        // Re-apply theme on every message that carries a node id, even when it
+        // matches state — guards against the SDK delivering the first audio
+        // frame before the node id is cached, which would otherwise leave the
+        // orb labelled "Sarah is speaking" while the coach is actually talking.
         const nodeId = evt.agent_metadata?.workflow_node_id ?? evt.agentMetadata?.workflow_node_id;
-        if (nodeId && nodeId !== state.activeWorkflowNode) {
+        if (nodeId) {
+          const changed = nodeId !== state.activeWorkflowNode;
           state.activeWorkflowNode = nodeId;
-          log('workflow node', nodeId);
+          if (changed) log('workflow node', nodeId);
           applyNodeTheme(nodeId);
         }
         const src = evt.source ?? evt.role ?? (evt.type?.includes('user') ? 'user' : 'ai');
@@ -292,6 +339,11 @@ async function startCall() {
           addLine('agent', String(text));
           inferObjectives(String(text));
         } else {
+          // Content-pattern fallback: if the SDK omitted workflow_node_id but
+          // the message text gives away the speaker, retitle the orb before
+          // we render the line — otherwise the line label says "Sarah" while
+          // the coach is talking.
+          maybeRetitleFromAgentText(String(text));
           addLine('guest', String(text));
         }
       },
@@ -299,7 +351,7 @@ async function startCall() {
         log('mode', mode);
         const role = roleForNode(state.activeWorkflowNode);
         if (mode === 'speaking') setOrb('speaking', `${role.name} is speaking`);
-        else if (mode === 'listening') setOrb('listening', `${role.name} is listening`, 'Your turn');
+        else if (mode === 'listening') setOrb('listening', `${role.name} is listening`, listeningHintFor(role));
         else if (mode === 'thinking') setOrb('thinking', `${role.name} is thinking`);
         if (mode === 'speaking' || mode === 'thinking') {
           orb.classList.remove('user-speaking');
