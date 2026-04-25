@@ -100,6 +100,11 @@ function applyNodeTheme(nodeId) {
   const role = roleForNode(nodeId);
   orb.classList.remove('theme-sarah', 'theme-coach-mid', 'theme-coach-debrief', 'theme-dispatch');
   orb.classList.add(`theme-${role.theme}`);
+  // Refresh label so the orb retitles on handover even if onModeChange fired first
+  // with the previous node still cached in state.activeWorkflowNode.
+  if (orb.classList.contains('speaking'))       setOrb('speaking',  `${role.name} is speaking`);
+  else if (orb.classList.contains('listening')) setOrb('listening', `${role.name} is listening`, 'Your turn');
+  else if (orb.classList.contains('thinking'))  setOrb('thinking',  `${role.name} is thinking`);
 }
 
 function setOrb(kind, label, sub) {
@@ -126,8 +131,10 @@ function hitObjective(key) {
   state.objectives.add(key);
   const el = document.querySelector(`.obj[data-obj="${key}"]`);
   if (el) el.classList.add('hit');
+  const total = document.querySelectorAll('.obj').length;
+  const struck = document.querySelectorAll('.obj.hit').length;
   const fill = $('obj-progress-fill');
-  if (fill) fill.style.width = (state.objectives.size * 25) + '%';
+  if (fill) fill.style.width = (total ? (struck / total) * 100 : 0) + '%';
 }
 
 function tickTimer() {
@@ -572,7 +579,7 @@ function liveFlag(id, severity, type, note) {
 }
 
 function inferObjectives(trainee) {
-  // Drives the LEFT-rail "Five moves to land" checklist in real time from
+  // Drives the LEFT-rail "Four moves to land" checklist in real time from
   // trainee utterances. The authoritative scoring comes from the ElevenLabs
   // eval webhook post-call — this is just qualitative progress feedback.
   const t = (trainee || '').toLowerCase();
@@ -594,7 +601,8 @@ function inferObjectives(trainee) {
     liveFlag('aircover_path', 'info', 'aircover_path_offered', 'Offered AirCover extenuating-circumstances review.');
   }
   if (/(supervisor|transfer you|escalat|connect you with|senior agent)/.test(t)) {
-    hitObjective('escalation');
+    // No visible UI item for escalation in the four-move checklist — flag only,
+    // do not increment the objectives bar.
     liveFlag('escalation_on_time', 'info', 'escalation_offered', 'Supervisor route offered.');
   }
   if (/^(ok|okay|alright|so)[.,]/.test(t) && elapsed() < 15 && !liveFlags.has('strong_ack')) {
