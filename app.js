@@ -740,10 +740,11 @@ function inferObjectives(trainee) {
   // eval webhook post-call — this is just qualitative progress feedback.
   const t = (trainee || '').toLowerCase();
 
-  // Lookup matches natural phrases trainees use to ask for or perform the
-  // reservation lookup: "let me look that up", "pull it up", "booking number",
-  // "confirmation code", or speaking the code itself.
-  if (/pull(?:ing)? (?:up|it up|that up|this up)|let me (?:look|find|pull|check)|look(?:ing)? (?:that|this|it|her booking|your booking|you) up|confirmation code|booking (?:number|reference|id)|reservation (?:number|details|id)|hm[a-z0-9]{3,}/.test(t)) {
+  // Lookup objective covers BOTH verifying identity and pulling up the
+  // reservation. Matches verification asks ("who am I speaking with",
+  // "confirm your name") AND lookup phrases ("let me look that up", "pull it
+  // up", "confirmation code"), or the trainee speaking the code itself.
+  if (/pull(?:ing)? (?:up|it up|that up|this up)|let me (?:look|find|pull|check)|look(?:ing)? (?:that|this|it|her booking|your booking|you) up|confirmation code|booking (?:number|reference|id)|reservation (?:number|details|id)|hm[a-z0-9]{3,}|(?:confirm|verify) (?:who|your name|your identity)|who am i speaking (?:with|to)|may i (?:have|get) your name|can (?:i|you) (?:confirm|verify|get) (?:your name|who)/.test(t)) {
     hitObjective('lookup');
   }
   // Empathy requires BOTH an empathy phrase AND a specific context anchor in the
