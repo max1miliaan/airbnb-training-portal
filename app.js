@@ -740,7 +740,10 @@ function inferObjectives(trainee) {
   // eval webhook post-call — this is just qualitative progress feedback.
   const t = (trainee || '').toLowerCase();
 
-  if (/pull up|pulling up|confirmation code|let me find|reservation (?:number|details)|hm[a-z0-9]{3,}/.test(t)) {
+  // Lookup matches natural phrases trainees use to ask for or perform the
+  // reservation lookup: "let me look that up", "pull it up", "booking number",
+  // "confirmation code", or speaking the code itself.
+  if (/pull(?:ing)? (?:up|it up|that up|this up)|let me (?:look|find|pull|check)|look(?:ing)? (?:that|this|it|her booking|your booking|you) up|confirmation code|booking (?:number|reference|id)|reservation (?:number|details|id)|hm[a-z0-9]{3,}/.test(t)) {
     hitObjective('lookup');
   }
   // Empathy requires BOTH an empathy phrase AND a specific context anchor in the
@@ -751,7 +754,11 @@ function inferObjectives(trainee) {
   if (empathyVerb.test(t) && contextAnchor.test(t)) {
     hitObjective('empathy');
   }
-  if (/(firm (?:policy|cancellation)|five days|5 days|0\s?percent|zero percent|standard refund)/.test(t)) {
+  // Policy match tolerates filler words ("firm, um, policy") and "no refund"
+  // variants; still requires a Firm/policy mention plus a refund-bracket phrase.
+  const policyMention = /\bfirm\b[^.!?]{0,30}\b(?:policy|cancellation|cancel)\b/;
+  const bracketMention = /(?:five days|5 days|seven days|7 days|0\s?percent|zero percent|no refund|standard refund|less than seven|within seven|within 5)/;
+  if (policyMention.test(t) || bracketMention.test(t)) {
     hitObjective('policy');
   }
   // AirCover requires the literal concept — generic "different solutions" or
