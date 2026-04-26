@@ -766,11 +766,13 @@ function inferObjectives(trainee) {
   if (empathyVerb.test(t) && contextAnchor.test(t)) {
     hitObjective('empathy');
   }
-  // Policy match tolerates filler words ("firm, um, policy") and "no refund"
-  // variants; still requires a Firm/policy mention plus a refund-bracket phrase.
+  // Policy match requires BOTH a Firm/policy mention AND a refund-bracket
+  // signal. "Five days before check-in" alone (just describing the
+  // cancellation timing) does not count — the trainee must be quoting
+  // policy. Tolerates filler words ("firm, um, policy").
   const policyMention = /\bfirm\b[^.!?]{0,30}\b(?:policy|cancellation|cancel)\b/;
-  const bracketMention = /(?:five days|5 days|seven days|7 days|0\s?percent|zero percent|no refund|standard refund|less than seven|within seven|within 5)/;
-  if (policyMention.test(t) || bracketMention.test(t)) {
+  const bracketMention = /(?:0\s?percent|zero percent|no refund|standard refund|full refund|less than seven|within seven|within 5|within five)/;
+  if (policyMention.test(t) && bracketMention.test(t)) {
     hitObjective('policy');
   }
   // AirCover requires the literal concept — generic "different solutions" or
