@@ -129,11 +129,17 @@ function applyNodeTheme(nodeId) {
   const role = roleForNode(nodeId);
   orb.classList.remove('theme-sarah', 'theme-coach-mid', 'theme-coach-debrief', 'theme-dispatch');
   orb.classList.add(`theme-${role.theme}`);
-  // Refresh label so the orb retitles on handover even if onModeChange fired first
-  // with the previous node still cached in state.activeWorkflowNode.
+  // Always refresh the label to match the current node — handles three cases:
+  // (1) speaking/listening/thinking class already set → relabel for new role
+  // (2) idle / no state class (first turn, just-routed) → still show the role name
+  //     so the orb doesn't say "Tap begin to start" while the coach is talking
   if (orb.classList.contains('speaking'))       setOrb('speaking',  `${role.name} is speaking`);
   else if (orb.classList.contains('listening')) setOrb('listening', `${role.name} is listening`, listeningHintFor(role));
   else if (orb.classList.contains('thinking'))  setOrb('thinking',  `${role.name} is thinking`);
+  else if (state.status === 'live') {
+    orbLabel.textContent = role.name;
+    orbSub.textContent = '';
+  }
 }
 
 function setOrb(kind, label, sub) {
@@ -356,6 +362,12 @@ async function startCall() {
       },
       onModeChange: ({ mode }) => {
         log('mode', mode);
+        // Force theme refresh BEFORE labelling. onModeChange fires after TTS
+        // starts, by which point handleToolEvent + onMessage have usually
+        // already updated state.activeWorkflowNode — but if they raced or
+        // arrived in unexpected order, this guarantees the orb color matches
+        // the current node before we set the label.
+        applyNodeTheme(state.activeWorkflowNode);
         const role = roleForNode(state.activeWorkflowNode);
         if (mode === 'speaking') setOrb('speaking', `${role.name} is speaking`);
         else if (mode === 'listening') setOrb('listening', `${role.name} is listening`, listeningHintFor(role));
@@ -554,7 +566,6 @@ function resetCall() {
   state.objectives = new Set();
   liveScores.policy = 0; liveScores.empathyCount = 0; liveScores.toolUsed = false; liveScores.escalationFired = false;
   liveFlags.clear();
-  _firedEdgeDispatch.clear();
   _seenToolCalls.clear();
   transcriptBody.innerHTML = '';
   transcriptMeta.textContent = '0 turns';
