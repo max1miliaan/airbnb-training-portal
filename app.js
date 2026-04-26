@@ -742,19 +742,22 @@ function inferObjectives(trainee) {
 
   if (/pull up|pulling up|confirmation code|let me find|reservation (?:number|details)|hm[a-z0-9]{3,}/.test(t)) {
     hitObjective('lookup');
-    liveFlag('intent_lookup', 'info', 'lookup_intent_recognised', 'Trainee signalled reservation lookup before quoting policy.');
   }
-  if (/(i'?m so sorry|that sounds|incredibly stressful|difficult week|anniversary|documented illness|i understand|i hear you)/.test(t)) {
+  // Empathy requires BOTH an empathy phrase AND a specific context anchor in the
+  // same utterance. "That must be frustrating" alone (about wait time) does not
+  // qualify — must name the anniversary, the illness, or repeated calls.
+  const empathyVerb = /(i'?m so sorry|that (?:sounds|must be)|incredibly stressful|difficult week|i understand|i hear you|terrible|awful)/;
+  const contextAnchor = /(anniversary|illness|sick|partner|husband|wife|fever|flu|doctor|trip|getaway|repeated call|called (?:twice|three|multiple)|documented)/;
+  if (empathyVerb.test(t) && contextAnchor.test(t)) {
     hitObjective('empathy');
-    liveFlag('strong_ack', 'info', 'strong_acknowledgement', `Acknowledged emotional context at ${formatTime(elapsed())}.`);
   }
   if (/(firm (?:policy|cancellation)|five days|5 days|0\s?percent|zero percent|standard refund)/.test(t)) {
     hitObjective('policy');
-    liveFlag('policy_cited', 'info', 'policy_cited_correctly', 'Cited Firm policy and 5-day bracket.');
   }
-  if (/(aircover|extenuating|reviewer|medical documentation|doctor'?s note)/.test(t)) {
+  // AirCover requires the literal concept — generic "different solutions" or
+  // "let me check" does not qualify.
+  if (/(aircover|extenuating(?: circumstances)?|extenuating[- ]circumstances? review)/.test(t)) {
     hitObjective('aircover');
-    liveFlag('aircover_path', 'info', 'aircover_path_offered', 'Offered AirCover extenuating-circumstances review.');
   }
   if (/(supervisor|transfer you|escalat|connect you with|senior agent)/.test(t)) {
     // No visible UI item for escalation in the four-move checklist — flag only,
