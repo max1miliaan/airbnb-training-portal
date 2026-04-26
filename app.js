@@ -129,14 +129,15 @@ function applyNodeTheme(nodeId) {
   const role = roleForNode(nodeId);
   orb.classList.remove('theme-sarah', 'theme-coach-mid', 'theme-coach-debrief', 'theme-dispatch');
   orb.classList.add(`theme-${role.theme}`);
-  // Generic labels (Speaking / Listening / Thinking) — no role name. The
-  // orb's theme color is the only role indicator. This avoids the visible
-  // lag when node tracking trails the SDK's mode-change event.
-  if (orb.classList.contains('speaking'))       setOrb('speaking',  'Speaking');
-  else if (orb.classList.contains('listening')) setOrb('listening', 'Listening', '');
-  else if (orb.classList.contains('thinking'))  setOrb('thinking',  'Thinking');
+  // Generic Speaking / Listening / Thinking labels for the live call;
+  // dedicated "Debrief" label once the workflow has moved to the debrief
+  // node so the trainee sees the mode change clearly.
+  const isDebrief = nodeId === 'debrief';
+  if (orb.classList.contains('speaking'))       setOrb('speaking',  isDebrief ? 'Debrief' : 'Speaking');
+  else if (orb.classList.contains('listening')) setOrb('listening', isDebrief ? 'Debrief' : 'Listening', '');
+  else if (orb.classList.contains('thinking'))  setOrb('thinking',  isDebrief ? 'Debrief' : 'Thinking');
   else if (state.status === 'live') {
-    orbLabel.textContent = 'Listening';
+    orbLabel.textContent = isDebrief ? 'Debrief' : 'Listening';
     orbSub.textContent = '';
   }
 }
@@ -362,9 +363,10 @@ async function startCall() {
       onModeChange: ({ mode }) => {
         log('mode', mode);
         applyNodeTheme(state.activeWorkflowNode);
-        if (mode === 'speaking') setOrb('speaking', 'Speaking');
-        else if (mode === 'listening') setOrb('listening', 'Listening', '');
-        else if (mode === 'thinking') setOrb('thinking', 'Thinking');
+        const isDebrief = state.activeWorkflowNode === 'debrief';
+        if (mode === 'speaking') setOrb('speaking', isDebrief ? 'Debrief' : 'Speaking');
+        else if (mode === 'listening') setOrb('listening', isDebrief ? 'Debrief' : 'Listening', '');
+        else if (mode === 'thinking') setOrb('thinking', isDebrief ? 'Debrief' : 'Thinking');
         if (mode === 'speaking' || mode === 'thinking') {
           orb.classList.remove('user-speaking');
           orb.style.setProperty('--vol', '0');
@@ -780,6 +782,13 @@ function inferObjectives(trainee) {
   }
   if (/^(ok|okay|alright|so)[.,]/.test(t) && elapsed() < 15 && !liveFlags.has('strong_ack')) {
     liveFlag('missed_empathy', 'warn', 'missed_emotional_context', 'Opened with a mechanical acknowledgement.');
+  }
+  // Trainee asked for the debrief — flip the orb to debrief mode immediately
+  // so the visual leads the workflow edge instead of trailing it.
+  if (/(debrief me|debrief now|score me|rate me|how did i do|wrap (?:this|it) up|end the scenario|time for feedback)/.test(t)) {
+    state.activeWorkflowNode = 'debrief';
+    applyNodeTheme('debrief');
+    setOrb('thinking', 'Debrief');
   }
 }
 
