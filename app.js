@@ -749,8 +749,8 @@ function inferObjectives(trainee) {
   // Empathy requires BOTH an empathy phrase AND a specific context anchor in the
   // same utterance. "That must be frustrating" alone (about wait time) does not
   // qualify — must name the anniversary, the illness, or repeated calls.
-  const empathyVerb = /(i'?m so sorry|that (?:sounds|must be)|incredibly stressful|difficult week|i understand|i hear you|terrible|awful)/;
-  const contextAnchor = /(anniversary|illness|sick|partner|husband|wife|fever|flu|doctor|trip|getaway|repeated call|called (?:twice|three|multiple)|documented)/;
+  const empathyVerb = /(i'?m (?:so |really |truly |very |deeply |incredibly )?sorry|that (?:sounds|must be)|incredibly stressful|difficult (?:week|time)|i understand|i hear you|terrible|awful|hope (?:they|he|she|your partner)(?:'s| is| are)? feeling better|hope (?:they|he|she|your partner) (?:get|gets|are) better|sympath|that's (?:awful|horrible|terrible|heartbreaking))/;
+  const contextAnchor = /(anniversary|illness|sick|partner|husband|wife|fever|flu|doctor|trip|getaway|repeated call|called (?:twice|three|multiple)|documented|five[- ]year|big trip)/;
   if (empathyVerb.test(t) && contextAnchor.test(t)) {
     hitObjective('empathy');
   }
