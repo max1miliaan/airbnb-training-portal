@@ -135,7 +135,7 @@ function applyNodeTheme(nodeId) {
   const isDebrief = nodeId === 'debrief';
   if (orb.classList.contains('speaking'))       setOrb('speaking',  isDebrief ? 'Debrief' : 'Speaking');
   else if (orb.classList.contains('listening')) setOrb('listening', isDebrief ? 'Debrief' : 'Listening', '');
-  else if (orb.classList.contains('thinking'))  setOrb('thinking',  isDebrief ? 'Debrief' : 'Thinking');
+  else if (orb.classList.contains('thinking'))  setOrb('listening', isDebrief ? 'Debrief' : 'Listening', '');
   else if (state.status === 'live') {
     orbLabel.textContent = isDebrief ? 'Debrief' : 'Listening';
     orbSub.textContent = '';
@@ -366,7 +366,7 @@ async function startCall() {
         const isDebrief = state.activeWorkflowNode === 'debrief';
         if (mode === 'speaking') setOrb('speaking', isDebrief ? 'Debrief' : 'Speaking');
         else if (mode === 'listening') setOrb('listening', isDebrief ? 'Debrief' : 'Listening', '');
-        else if (mode === 'thinking') setOrb('thinking', isDebrief ? 'Debrief' : 'Thinking');
+        else if (mode === 'thinking') setOrb('listening', isDebrief ? 'Debrief' : 'Listening', '');
         if (mode === 'speaking' || mode === 'thinking') {
           orb.classList.remove('user-speaking');
           orb.style.setProperty('--vol', '0');
@@ -788,7 +788,7 @@ function inferObjectives(trainee) {
   if (/(debrief me|debrief now|score me|rate me|how did i do|wrap (?:this|it) up|end the scenario|time for feedback)/.test(t)) {
     state.activeWorkflowNode = 'debrief';
     applyNodeTheme('debrief');
-    setOrb('thinking', 'Debrief');
+    setOrb('listening', 'Debrief', '');
   }
 }
 
